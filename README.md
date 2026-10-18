@@ -26,7 +26,7 @@ Requires macOS 14 or newer and Xcode command-line tools to build. The build scri
 3. Drag **Color balance** to change warmth and tint together, or expand Precision controls for individual keyboard-accessible sliders. Develop tone and saturation, add split toning, faded blacks, black depth, or cross-processing. Change grain amount/size, halation, bloom/spread, and vignette.
 4. Add a **light leak**, then click **Place light on photograph** to drag its origin directly over the image. Hue, spread and precise position remain adjustable in the inspector. Placement switches to the developed image at fit size; Compare or 100% exits placement.
 5. Try **Amber & cyan**, **Faded print**, **Nocturne**, or **Sun wash** from the treatment menu. These replace the creative finishing settings while preserving the chosen film, exposure and white balance. **Clean finish** resets that same finishing subset; **Reset all** restores the full default recipe.
-6. Press **B** for aligned original/developed comparison. **⌘1** switches fit/100%; scroll the full-resolution photograph.
+6. Use **Compare** for original-only, vertical/horizontal draggable splits, or side-by-side views. **B** toggles original/developed. **⌘0** fits the image, **⌘1** toggles fit/100%, and **⌘− / ⌘=** step zoom from 25% to 400%. Scroll to pan. Double-click the preview in Developed or Original mode to toggle fit/100%.
 7. Save a named recipe or export a full-resolution JPEG (95%), PNG (8-bit), or TIFF (16-bit), tagged sRGB. **⇧⌘E** exports JPEG.
 
 **⌘Z / ⇧⌘Z** undo/redo. Develop menu closes an image from the session without deleting the source. The session and recipes automatically save to `~/Library/Application Support/Silverroom/`. Originals are never edited. Referenced files need to remain accessible at their original location. Exports contain rendered pixels and color profiles; source EXIF/IPTC metadata is not copied.
@@ -51,7 +51,7 @@ The app is named Romeling Silverroom and bundles the supplied `romeling-logo.svg
 
 Creative effects are artistic treatments, not simulations of laboratory chemistry. Film strength controls emulsion rendering; the creative finish is independently applied afterward. Legacy halation compositing has been corrected to keep exported opacity and color consistent with previews.
 
-Close a photograph using **×** on its thumbnail or in the image toolbar (**⌘⌫**). Original files stay on disk. The toolbar’s **Reset** menu can reset adjustments while keeping the selected film, or restore all default settings. **⌘Z** undoes both closing and resetting; **⇧⌘Z** redoes them.
+Close a photograph using **×** on its thumbnail (**⌘⌫**). Original files stay on disk. The toolbar’s **Reset** menu can reset adjustments while keeping the selected film, or restore all default settings. **⌘Z** undoes both closing and resetting; **⇧⌘Z** redoes them.
 
 ## Package and publish
 
@@ -66,3 +66,9 @@ Creates the universal app, compressed DMG and `dist/SHA256SUMS.txt`. Build outpu
 Click **Batch** in the toolbar. Select any images in the current session, choose the current image’s film and adjustments for a consistent look or keep each image’s own settings, then choose JPEG, PNG or 16-bit TIFF and an output folder. Every run creates a new subfolder with numbered filenames. Session settings and source files stay unchanged.
 
 Progress and per-file errors are shown as images process serially. **Stop batch** finishes the current image and skips the remaining queue; completed exports are kept. **Show exports** opens the output folder. Settings are captured when the batch starts.
+
+## Preview and film controls
+
+Use **Previous / Next** under the film name, or **⌥↑ / ⌥↓**, to cycle through the same maker/name order as the film browser. Plain **↑ / ↓** work when the preview or film selector is focused; they do not replace arrow-key editing in other controls. Film switching preserves your adjustments and supports undo.
+
+Grain amount spans 0–800% (100% is the stock default), with size 0.5–8×. Existing recipes retain their appearance. Grain remains proportional to film strength; assess it at 100% zoom. Comparison split position can be dragged on the image or adjusted with the labeled toolbar slider. Side-by-side views share one scroll area for aligned panning.

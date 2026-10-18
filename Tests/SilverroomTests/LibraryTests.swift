@@ -79,4 +79,32 @@ final class LibraryTests: XCTestCase {
         library.redo(); XCTAssertEqual(library.recipe, Recipe())
     }
 
+    @MainActor func testFilmNavigationWrapsAndPreservesAdjustments() {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let library = Library(restore: false, storageDirectory: dir)
+        var recipe = Recipe(); recipe.filmID = Library.orderedFilms[0].id; recipe.grain = 6; recipe.exposure = 1
+        let photo = Photograph(url: URL(fileURLWithPath: "/test.jpg"), recipe: recipe)
+        library.photos = [photo]; library.selectedID = photo.id
+        library.stepFilm(-1)
+        XCTAssertEqual(library.recipe.filmID, Library.orderedFilms.last?.id)
+        XCTAssertEqual(library.recipe.grain, 6); XCTAssertEqual(library.recipe.exposure, 1)
+        library.stepFilm(1); XCTAssertEqual(library.recipe, recipe)
+        library.undo(); XCTAssertEqual(library.recipe.filmID, Library.orderedFilms.last?.id)
+    }
+    @MainActor func testZoomBoundsAndComparisonModes() {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let library = Library(restore: false, storageDirectory: dir)
+        library.stepZoom(1); XCTAssertEqual(library.zoomLevel, 1)
+        for _ in 0..<20 { library.stepZoom(1) }
+        XCTAssertEqual(library.zoomLevel, 4)
+        for _ in 0..<20 { library.stepZoom(-1) }
+        XCTAssertEqual(library.zoomLevel, 0.25)
+        library.zoom = false; XCTAssertEqual(library.zoomLevel, 0)
+        library.comparisonMode = .sideBySide; XCTAssertTrue(library.compare)
+        library.toggleOriginal(); XCTAssertEqual(library.comparisonMode, .original)
+        library.toggleOriginal(); XCTAssertEqual(library.comparisonMode, .developed)
+    }
+
 }

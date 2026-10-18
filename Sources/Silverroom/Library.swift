@@ -25,8 +25,32 @@ enum HistoryAction {
     @Published var status = "Ready for your next frame"
     @Published var error: String?
     @Published var recipes: [SavedRecipe] = []
-    @Published var compare = false
-    @Published var zoom = false
+    @Published var comparisonMode: ComparisonMode = .developed
+    @Published var splitPosition = 0.5
+    @Published var zoomLevel = 0.0
+    var compare: Bool {
+        get { comparisonMode != .developed }
+        set { comparisonMode = newValue ? .vertical : .developed }
+    }
+    var zoom: Bool {
+        get { zoomLevel != 0 }
+        set { zoomLevel = newValue ? 1 : 0 }
+    }
+    static let zoomSteps: [Double] = [0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4]
+    static var orderedFilms: [Film] { Film.all.sorted { ($0.maker, $0.name) < ($1.maker, $1.name) } }
+    func stepZoom(_ direction: Int) {
+        if zoomLevel == 0 { zoomLevel = direction > 0 ? 1 : 0.5; return }
+        let index = Self.zoomSteps.firstIndex(of: zoomLevel) ?? 3
+        zoomLevel = Self.zoomSteps[min(Self.zoomSteps.count - 1, max(0, index + direction))]
+    }
+    func stepFilm(_ direction: Int) {
+        let films = Self.orderedFilms
+        let index = films.firstIndex { $0.id == recipe.filmID } ?? 0
+        let next = (index + direction % films.count + films.count) % films.count
+        adjustmentGesture(false)
+        change { $0.filmID = films[next].id }
+    }
+    func toggleOriginal() { comparisonMode = comparisonMode == .original ? .developed : .original }
     @Published var placingLight = false
     @Published var undoStack: [HistoryAction] = []
     @Published var redoStack: [HistoryAction] = []

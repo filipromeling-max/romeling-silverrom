@@ -165,4 +165,18 @@ extension EngineTests {
         let m = try bytes(Engine.develop(gray, recipe: magenta))
         XCTAssertGreaterThan((Int(m[0]) + Int(m[2])) / 2, Int(m[1]), "Magenta axis should favor red/blue over green")
     }
+    func testExtendedGrainAddsTextureWithoutChangingOpacity() throws {
+        let flat = CIImage(color: CIColor(red: 0.5, green: 0.5, blue: 0.5)).cropped(to: CGRect(x: 0, y: 0, width: 240, height: 160))
+        var recipe = Recipe(); recipe.grain = 0; recipe.halation = 0
+        let clean = try bytes(Engine.develop(flat, recipe: recipe))
+        recipe.grain = 2
+        let normal = try bytes(Engine.develop(flat, recipe: recipe))
+        recipe.grain = 8; recipe.grainSize = 8
+        let strong = try bytes(Engine.develop(flat, recipe: recipe))
+        func difference(_ values: [UInt8]) -> Int { zip(values, clean).enumerated().filter { $0.offset % 4 != 3 }.reduce(0) { $0 + abs(Int($1.element.0) - Int($1.element.1)) } }
+        XCTAssertGreaterThan(difference(strong), difference(normal))
+        XCTAssertTrue(strong.enumerated().filter { $0.offset % 4 == 3 }.allSatisfy { $0.element == 255 })
+        XCTAssertEqual(try JSONDecoder().decode(Recipe.self, from: JSONEncoder().encode(recipe)), recipe)
+    }
+
 }

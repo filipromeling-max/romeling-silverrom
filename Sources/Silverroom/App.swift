@@ -26,8 +26,13 @@ import AppKit
                 Button("Redo", action: library.redo).keyboardShortcut("z", modifiers: [.command, .shift]).disabled(library.redoStack.isEmpty)
             }
             CommandMenu("Develop") {
-                Button("Compare Original") { library.compare.toggle() }.keyboardShortcut("b", modifiers: []).disabled(!library.canEdit)
+                Button("Original / Developed") { library.toggleOriginal() }.keyboardShortcut("b", modifiers: []).disabled(!library.canEdit)
                 Button("Fit / 100%") { library.zoom.toggle() }.keyboardShortcut("1").disabled(!library.canEdit)
+                Button("Zoom In") { library.stepZoom(1) }.keyboardShortcut("=").disabled(!library.canEdit)
+                Button("Zoom Out") { library.stepZoom(-1) }.keyboardShortcut("-").disabled(!library.canEdit)
+                Button("Fit to Window") { library.zoomLevel = 0 }.keyboardShortcut("0").disabled(!library.canEdit)
+                Button("Previous Film") { library.stepFilm(-1) }.keyboardShortcut(.upArrow, modifiers: .option).disabled(!library.canEdit)
+                Button("Next Film") { library.stepFilm(1) }.keyboardShortcut(.downArrow, modifiers: .option).disabled(!library.canEdit)
                 ResetSettingsMenu().environmentObject(library)
                 Divider()
                 Button("Close Image", action: library.removeSelected).keyboardShortcut(.delete, modifiers: .command).disabled(library.selected == nil)
@@ -54,6 +59,7 @@ struct Caption: View {
 struct DarkroomView: View {
     @EnvironmentObject var library: Library
     @Environment(\.displayScale) private var displayScale
+    @FocusState private var previewFocused: Bool
     @State private var dropTarget = false
     @State private var savingRecipe = false
     @State private var batchExport = false
@@ -65,6 +71,7 @@ struct DarkroomView: View {
             HStack(spacing: 0) {
                 VStack(spacing: 0) {
                     imageHeader
+                    PreviewControls().padding(.horizontal, 24).frame(height: 42)
                     canvas
                     filmstrip
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -75,7 +82,8 @@ struct DarkroomView: View {
             footer
         }
         .background(Color.room)
-        .onChange(of: library.zoom) { _, zoomed in if zoomed { library.placingLight = false }; library.render() }
+        .onChange(of: library.selectedID) { _, id in previewFocused = id != nil }
+        .onChange(of: library.zoomLevel) { old, level in if level != 0 { library.placingLight = false }; if old == 0 || level == 0 { library.render() } }
         .onChange(of: library.compare) { _, comparing in if comparing { library.placingLight = false } }
         .tint(Color.accent)
         .alert("Couldn’t complete that", isPresented: Binding(get: { library.error != nil }, set: { if !$0 { library.error = nil } })) {
@@ -125,14 +133,11 @@ struct DarkroomView: View {
             }
             Spacer()
             if library.selected != nil {
-                Button { library.compare.toggle() } label: { Label("Compare", systemImage: "rectangle.lefthalf.inset.filled").foregroundStyle(library.compare ? Color.accent : .secondary) }.buttonStyle(.plain).help("Before and after · B").disabled(!library.canEdit)
-                ResetSettingsMenu().menuStyle(.borderlessButton).fixedSize().padding(.leading, 14)
-                Button(action: library.removeSelected) { Image(systemName: "xmark") }
-                    .buttonStyle(.plain).padding(.leading, 14).help("Close image · ⌘⌫").accessibilityLabel("Close image")
-                Button(library.zoom ? "Fit" : "100%") { library.zoom.toggle() }.buttonStyle(.plain).padding(.leading, 14).disabled(!library.canEdit)
+                ResetSettingsMenu().menuStyle(.borderlessButton).fixedSize()
             }
-        }.padding(.horizontal, 32).frame(height: 82)
+        }.padding(.horizontal, 28).frame(height: 64)
     }
+
     private var canvas: some View {
         GeometryReader { proxy in
             ZStack {
@@ -140,12 +145,14 @@ struct DarkroomView: View {
                 if let image = library.preview ?? library.original {
                     if library.zoom {
                         ScrollView([.horizontal, .vertical]) {
-                            comparison(image, size: CGSize(width: image.size.width / displayScale, height: image.size.height / displayScale))
+                            ImageComparison(image: image, size: CGSize(width: library.size.width * library.zoomLevel / displayScale, height: library.size.height * library.zoomLevel / displayScale))
+                                .frame(minWidth: proxy.size.width, minHeight: proxy.size.height)
                         }
                     } else {
                         let ratio = image.size.width / max(1, image.size.height)
-                        let w = min(max(1, proxy.size.width - 64), max(1, proxy.size.height - 56) * ratio)
-                        comparison(image, size: CGSize(width: w, height: w / ratio))
+                        let availableWidth = library.comparisonMode == .sideBySide ? (proxy.size.width - 80) / 2 : proxy.size.width - 64
+                        let w = min(max(1, availableWidth), max(1, proxy.size.height - 56) * ratio)
+                        ImageComparison(image: image, size: CGSize(width: w, height: w / ratio))
                     }
                 } else if library.busy {
                     ProgressView("Opening photograph…").controlSize(.small)
@@ -164,18 +171,12 @@ struct DarkroomView: View {
                 }
             }
         }.padding(.horizontal, 16).padding(.bottom, 16)
-    }
-    private func comparison(_ image: NSImage, size: CGSize) -> some View {
-        ZStack(alignment: .topLeading) {
-            Image(nsImage: image).resizable().frame(width: size.width, height: size.height)
-            if library.compare, let original = library.original {
-                Image(nsImage: original).resizable().frame(width: size.width, height: size.height)
-                    .mask(alignment: .leading) { Rectangle().frame(width: size.width / 2) }
-                Rectangle().fill(.white.opacity(0.8)).frame(width: 1, height: size.height).offset(x: size.width / 2)
-                HStack { Text("ORIGINAL"); Spacer(); Text("DEVELOPED") }.font(.system(size: 9, weight: .medium)).tracking(1.5).padding(10).background(.black.opacity(0.45))
-            }
-            if library.placingLight && library.canEdit { LightPlacement(size: size) }
-        }.frame(width: size.width, height: size.height).accessibilityLabel(library.compare ? "Original on left, developed photograph on right" : "Developed photograph")
+            .focusable().focused($previewFocused)
+            .onTapGesture(count: 2) { if library.canEdit && !library.placingLight && !library.comparisonMode.isSplit { library.zoom.toggle() } }
+            .simultaneousGesture(TapGesture().onEnded { previewFocused = true })
+            .onKeyPress(.upArrow) { guard library.canEdit else { return .ignored }; library.stepFilm(-1); return .handled }
+            .onKeyPress(.downArrow) { guard library.canEdit else { return .ignored }; library.stepFilm(1); return .handled }
+            .help("↑ / ↓ to switch films when the preview is focused. Scroll to pan when zoomed.")
     }
     private var filmstrip: some View {
         HStack(spacing: 18) {

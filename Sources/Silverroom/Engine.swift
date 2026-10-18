@@ -53,7 +53,7 @@ struct Engine {
             // Core Image's repeatable noise field is sampled in original pixel coordinates.
             let noise = CIFilter.randomGenerator().outputImage!.transformed(by: .init(scaleX: max(0.25, scale * r.grainSize), y: max(0.25, scale * r.grainSize))).cropped(to: extent)
                 .applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: 0])
-                .applyingFilter("CIColorMatrix", parameters: ["inputAVector": CIVector(x: 0, y: 0, z: 0, w: f.grain * r.grain * 0.25)])
+                .applyingFilter("CIColorMatrix", parameters: ["inputAVector": CIVector(x: 0, y: 0, z: 0, w: min(1, f.grain * max(0, r.grain) * 0.25))])
             film = noise.applyingFilter("CISoftLightBlendMode", parameters: [kCIInputBackgroundImageKey: film])
         }
         let mask = CIImage(color: CIColor(red: r.amount, green: r.amount, blue: r.amount)).cropped(to: extent)
