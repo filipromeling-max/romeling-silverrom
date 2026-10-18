@@ -72,3 +72,11 @@ Progress and per-file errors are shown as images process serially. **Stop batch*
 Use **Previous / Next** under the film name, or **⌥↑ / ⌥↓**, to cycle through the same maker/name order as the film browser. Plain **↑ / ↓** work when the preview or film selector is focused; they do not replace arrow-key editing in other controls. Film switching preserves your adjustments and supports undo.
 
 Grain amount spans 0–800% (100% is the stock default), with size 0.5–8×. Existing recipes retain their appearance. Grain remains proportional to film strength; assess it at 100% zoom. Comparison split position can be dragged on the image or adjusted with the labeled toolbar slider. Side-by-side views share one scroll area for aligned panning.
+
+## Reference image matching
+
+Click **Match reference** beside the image name, then **Choose reference…** to load a RAW or standard image. The app analyzes color averages, saturation and tonal percentiles locally, then searches bounded adjustments to exposure, warmth, tint, contrast, saturation, shadow lift and highlight recovery. Your film, grain and other effects remain intact.
+
+Preview the reference and proposed result side by side, adjust **Match strength**, and toggle **Show before match**. **Apply match** commits one undoable adjustment; Cancel leaves the image unchanged. Fine-tune the resulting inspector settings, save a recipe or use the current look for batch export. No reference-file dependency is needed after applying.
+
+This is a global statistical starting point, not subject-aware or exact color transfer. Different scene content affects the match, and the selected film can constrain it (for example, a monochrome film cannot reproduce a colorful reference).

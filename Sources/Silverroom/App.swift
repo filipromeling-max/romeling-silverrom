@@ -63,6 +63,7 @@ struct DarkroomView: View {
     @State private var dropTarget = false
     @State private var savingRecipe = false
     @State private var batchExport = false
+    @State private var referencePhoto: Photograph?
     @State private var recipeName = ""
     var body: some View {
         VStack(spacing: 0) {
@@ -89,6 +90,7 @@ struct DarkroomView: View {
         .alert("Couldn’t complete that", isPresented: Binding(get: { library.error != nil }, set: { if !$0 { library.error = nil } })) {
             Button("OK") { library.error = nil }
         } message: { Text(library.error ?? "") }
+        .sheet(item: $referencePhoto) { photo in ReferenceMatchView(photo: photo).environmentObject(library) }
         .sheet(isPresented: $batchExport) { BatchExportView().environmentObject(library) }
         .sheet(isPresented: $savingRecipe) {
             VStack(alignment: .leading, spacing: 20) {
@@ -133,6 +135,7 @@ struct DarkroomView: View {
             }
             Spacer()
             if library.selected != nil {
+                Button { referencePhoto = library.selected } label: { Label("Match reference", systemImage: "photo.on.rectangle") }.buttonStyle(.borderless).disabled(!library.canEdit)
                 ResetSettingsMenu().menuStyle(.borderlessButton).fixedSize()
             }
         }.padding(.horizontal, 28).frame(height: 64)
