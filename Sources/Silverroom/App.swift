@@ -56,6 +56,7 @@ struct DarkroomView: View {
     @Environment(\.displayScale) private var displayScale
     @State private var dropTarget = false
     @State private var savingRecipe = false
+    @State private var batchExport = false
     @State private var recipeName = ""
     var body: some View {
         VStack(spacing: 0) {
@@ -80,6 +81,7 @@ struct DarkroomView: View {
         .alert("Couldn’t complete that", isPresented: Binding(get: { library.error != nil }, set: { if !$0 { library.error = nil } })) {
             Button("OK") { library.error = nil }
         } message: { Text(library.error ?? "") }
+        .sheet(isPresented: $batchExport) { BatchExportView().environmentObject(library) }
         .sheet(isPresented: $savingRecipe) {
             VStack(alignment: .leading, spacing: 20) {
                 Text("Save a recipe").font(.title2)
@@ -105,6 +107,7 @@ struct DarkroomView: View {
             Rectangle().fill(.white.opacity(0.14)).frame(width: 1, height: 18)
             Caption(text: "THE DIGITAL DARKROOM")
             Spacer()
+            Button { batchExport = true } label: { Label("Batch", systemImage: "square.stack") }.buttonStyle(.plain).disabled(library.photos.isEmpty || library.exporting).help("Develop and export multiple photographs")
             Button(action: library.open) { Label("Import", systemImage: "plus") }.buttonStyle(.plain).help("Import photographs · ⌘O")
             Menu {
                 Button("JPEG · 95% quality") { library.export(format: "jpg") }

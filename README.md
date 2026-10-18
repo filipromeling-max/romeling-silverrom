@@ -33,7 +33,7 @@ Requires macOS 14 or newer and Xcode command-line tools to build. The build scri
 
 ## Honest boundaries
 
-Film profiles are researched creative approximations, not calibrated reproductions. RAW compatibility is provided by Apple's CIRAWFilter and varies by camera and installed macOS. Unsupported RAW files produce an error instead of silently using an embedded JPEG. Preview is downsampled to 1800 pixels; 100% and export render full resolution. Grain is approximate and may look different at fit size. This version exports one selected photograph at a time and does not include crop, local masks, lens profiles, batch export, or an archival catalog.
+Film profiles are researched creative approximations, not calibrated reproductions. RAW compatibility is provided by Apple's CIRAWFilter and varies by camera and installed macOS. Unsupported RAW files produce an error instead of silently using an embedded JPEG. Preview is downsampled to 1800 pixels; 100% and export render full resolution. Grain is approximate and may look different at fit size. This version supports individual and batch export. It does not include crop, local masks, lens profiles, or an archival catalog.
 
 ## Validation
 
@@ -60,3 +60,9 @@ Close a photograph using **×** on its thumbnail or in the image toolbar (**⌘�
 ```
 
 Creates the universal app, compressed DMG and `dist/SHA256SUMS.txt`. Build outputs are release assets, not committed binaries. The GitHub Pages site lives in `docs/` and deploys through `.github/workflows/pages.yml` on pushes to main. Update the version in `scripts/build-app.sh` and download links in `docs/index.html` together for a new release.
+
+## Batch processing
+
+Click **Batch** in the toolbar. Select any images in the current session, choose the current image’s film and adjustments for a consistent look or keep each image’s own settings, then choose JPEG, PNG or 16-bit TIFF and an output folder. Every run creates a new subfolder with numbered filenames. Session settings and source files stay unchanged.
+
+Progress and per-file errors are shown as images process serially. **Stop batch** finishes the current image and skips the remaining queue; completed exports are kept. **Show exports** opens the output folder. Settings are captured when the batch starts.
