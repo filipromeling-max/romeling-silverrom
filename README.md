@@ -51,7 +51,7 @@ The app is named Romeling Silverroom and bundles the supplied `romeling-logo.svg
 
 Creative effects are artistic treatments, not simulations of laboratory chemistry. Film strength controls emulsion rendering; the creative finish is independently applied afterward. Legacy halation compositing has been corrected to keep exported opacity and color consistent with previews.
 
-Close a photograph using **×** on its thumbnail (**⌘⌫**). Original files stay on disk. The toolbar’s **Reset** menu can reset adjustments while keeping the selected film, or restore all default settings. **⌘Z** undoes both closing and resetting; **⇧⌘Z** redoes them.
+Close a photograph using **×** on its thumbnail (**⌘⌫**). Original files stay on disk. The toolbar’s **More → Reset** menu can reset adjustments while keeping the selected film, or restore all default settings. **⌘Z** undoes both closing and resetting; **⇧⌘Z** redoes them.
 
 ## Package and publish
 
@@ -97,9 +97,11 @@ Each mask has enable/invert controls and local exposure, warmth, saturation, con
 
 Reference matching now scores shadow/highlight color relationships as well as global color, saturation and tonal percentiles, while preserving the new film, scanner and mask settings.
 
-## Working print controls (1.7)
+## Working print controls (1.8)
 
-The long parameter inspector is replaced by **Light · Color · Texture · Glow · Local** tools below the photograph. The right inspector follows the selected tool. The live film ribbon previews the current photograph with neighboring films. **↑/↓** while the preview is focused and **⌥↑/⌥↓** cycle films. Star the current film and enable Favorites to limit browsing; favorite choices are saved locally.
+The photograph fills the workspace beneath a compact native Mac toolbar. Click the current film name to browse films, manage favorites, or expand live neighboring-film previews. **↑/↓** while the preview is focused and **⌥↑/⌥↓** cycle films. Choose **Light · Color · Texture · Glow · Local** from the adjustment selector in the resizable native inspector.
+
+**⌥⌘I** toggles the inspector, and **⌥⌘S** toggles the session thumbnails (hidden by default). Both are also available in View and the toolbar. Hide both for a centered, unobstructed photograph. Versions, reset and batch export are in the toolbar’s **More** menu. **Explore** opens variations on demand rather than occupying the canvas.
 
 - **Light:** exposure, bidirectional shadows/highlights, and contrast. **Adjust light on image** lets you drag up/down over the photograph. Auto chooses a tonal region from the original pixels at your starting point; Target allows an explicit region. These are whole-image tonal changes. Use Local for an area-specific correction.
 - **Color:** balance, saturation, reference matching and scanner interpretation; expand Details for split tones, fading and cross-processing.

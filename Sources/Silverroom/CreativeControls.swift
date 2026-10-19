@@ -96,6 +96,7 @@ struct FilmBrowser: View {
     @State private var category = "All"
     var filtered: [Film] {
         Film.all.filter { film in
+            ( !library.favoritesOnly || library.favoriteFilms.isEmpty || library.favoriteFilms.contains(film.id)) &&
             (search.isEmpty || "\(film.maker) \(film.name) \(film.kind)".localizedCaseInsensitiveContains(search)) &&
             (category == "All" || (category == "Monochrome" ? film.monochrome : category == "Experimental" ? film.kind == "EXPERIMENTAL COLOR" : !film.monochrome && film.kind != "EXPERIMENTAL COLOR"))
         }.sorted { ($0.maker, $0.name) < ($1.maker, $1.name) }
@@ -103,6 +104,22 @@ struct FilmBrowser: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack { Caption(text: "THE FILM LIBRARY"); Spacer(); Text("\(Film.all.count) stocks").font(.system(size: 11)).foregroundStyle(Color.subtle) }
+            HStack {
+                Toggle("Favorites only", isOn: $library.favoritesOnly).toggleStyle(.checkbox)
+                Spacer()
+                Button { library.toggleFavorite(library.recipe.filmID) } label: {
+                    Label(library.favoriteFilms.contains(library.recipe.filmID) ? "Unstar current film" : "Star current film", systemImage: library.favoriteFilms.contains(library.recipe.filmID) ? "star.fill" : "star")
+                }.buttonStyle(.borderless).disabled(!library.canEdit)
+            }.font(.caption)
+            if library.favoritesOnly && library.favoriteFilms.isEmpty {
+                Text("No favorites yet. Showing all films.").font(.caption).foregroundStyle(.secondary)
+            }
+            DisclosureGroup("Preview neighboring films") {
+                LookPreviews(choices: library.ribbonFilms.map { film in
+                    var recipe = library.recipe; recipe.filmID = film.id
+                    return LookChoice(id: film.id, title: film.name, recipe: recipe, selected: film.id == library.recipe.filmID)
+                }) { choice in library.change { $0.filmID = choice.id } }.padding(.top, 8)
+            }.font(.caption)
             TextField("Search films or makers", text: $search).textFieldStyle(.roundedBorder).accessibilityLabel("Search films or makers")
             Picker("Film type", selection: $category) { ForEach(["All", "Color", "Monochrome", "Experimental"], id: \.self) { Text($0) } }.pickerStyle(.segmented)
             ScrollView {
@@ -128,7 +145,7 @@ struct FilmBrowser: View {
                 }
             }
             HStack { Text("Film-inspired interpretations").font(.system(size: 10)).foregroundStyle(Color.subtle); Spacer(); Button("Done") { dismiss() }.keyboardShortcut(.cancelAction) }
-        }.padding(20).frame(width: 430, height: 460).background(Color.panel)
+        }.padding(20).frame(width: 430, height: 560).background(Color.panel)
     }
 }
 

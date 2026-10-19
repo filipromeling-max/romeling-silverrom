@@ -31,6 +31,8 @@ enum HistoryAction {
     @Published var explorationBase: Recipe?
     @Published var favoriteFilms: Set<String> = []
     @Published var favoritesOnly = false
+    @Published var inspectorVisible = true
+    @Published var sessionVisible = false
     var workingImage: CIImage? { previewSource }
     var workingImageID: String { (selectedID?.uuidString ?? "") + String(busy) }
     @Published var photos: [Photograph] = []

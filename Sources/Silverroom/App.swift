@@ -11,7 +11,7 @@ import AppKit
                 .onOpenURL { library.add([$0]) }
         }
         .defaultSize(width: 1380, height: 900)
-        .windowStyle(.hiddenTitleBar)
+        .windowToolbarStyle(.unifiedCompact)
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("Import Photographs…", action: library.open).keyboardShortcut("o")
@@ -24,6 +24,10 @@ import AppKit
             CommandGroup(replacing: .undoRedo) {
                 Button("Undo", action: library.undo).keyboardShortcut("z").disabled(library.undoStack.isEmpty)
                 Button("Redo", action: library.redo).keyboardShortcut("z", modifiers: [.command, .shift]).disabled(library.redoStack.isEmpty)
+            }
+            CommandGroup(after: .toolbar) {
+                Button(library.inspectorVisible ? "Hide Adjustments" : "Show Adjustments") { library.inspectorVisible.toggle() }.keyboardShortcut("i", modifiers: [.command, .option])
+                Button(library.sessionVisible ? "Hide Session" : "Show Session") { library.sessionVisible.toggle() }.keyboardShortcut("s", modifiers: [.command, .option])
             }
             CommandMenu("Develop") {
                 Button("Original / Developed") { library.toggleOriginal() }.keyboardShortcut("b", modifiers: []).disabled(!library.canEdit)
@@ -65,26 +69,27 @@ struct DarkroomView: View {
     @State private var batchExport = false
     @State private var referencePhoto: Photograph?
     @State private var recipeName = ""
-    var body: some View {
+    @State private var browsingFilms = false
+    private var workspace: some View {
         VStack(spacing: 0) {
-            header
-            Divider()
-            HStack(spacing: 0) {
-                VStack(spacing: 0) {
-                    imageHeader
-                    PreviewControls().padding(.horizontal, 24).frame(height: 42)
-                    canvas
-                    PrintToolBar()
-                    FilmRibbon()
-                    filmstrip
-                }.frame(maxWidth: .infinity, maxHeight: .infinity)
+            canvas
+            if library.sessionVisible && !library.photos.isEmpty {
                 Divider()
-                WorkingInspector(save: { recipeName = library.recipe.film.name + " · Custom"; savingRecipe = true }, match: { referencePhoto = library.selected }).frame(width: 300)
+                filmstrip
             }
             Divider()
             footer
         }
         .background(Color.room)
+        .navigationTitle(library.selected?.name ?? "Romeling Silverroom")
+        .inspector(isPresented: $library.inspectorVisible) {
+            WorkingInspector(save: { recipeName = library.recipe.film.name + " · Custom"; savingRecipe = true }, match: { referencePhoto = library.selected })
+                .inspectorColumnWidth(min: 280, ideal: 300, max: 380)
+        }
+        .toolbar { darkroomToolbar }
+    }
+    var body: some View {
+        workspace
         .onChange(of: library.selectedID) { _, id in previewFocused = id != nil }
         .onChange(of: library.zoomLevel) { old, level in if level != 0 { library.placingLight = false; library.editingMask = false; library.directAdjustment = false }; if old == 0 || level == 0 { library.render() } }
         .onChange(of: library.compare) { _, comparing in if comparing { library.placingLight = false; library.editingMask = false; library.directAdjustment = false } }
@@ -115,46 +120,66 @@ struct DarkroomView: View {
                 HStack { Button("Cancel") { savingRecipe = false }.keyboardShortcut(.cancelAction); Spacer(); Button("Save Recipe") { library.saveRecipe(name: recipeName); savingRecipe = false }.keyboardShortcut(.defaultAction).disabled(recipeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }
             }.padding(28).frame(width: 380)
         }
-        .onDrop(of: [.fileURL], isTargeted: $dropTarget) { providers in
-            for provider in providers {
-                _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                    guard let url else { return }; Task { @MainActor in library.add([url]) }
-                }
-            }
-            return !providers.isEmpty
-        }
+        .onDrop(of: [.fileURL], isTargeted: $dropTarget, perform: importDrop)
         .overlay { if dropTarget { Rectangle().stroke(Color.accent, lineWidth: 2).padding(5).allowsHitTesting(false) } }
     }
-    private var header: some View {
-        HStack(spacing: 20) {
-            RomelingMark().frame(width: 98, height: 48)
-            Text("SILVERROOM").font(.system(size: 12, weight: .medium)).tracking(3)
-            Rectangle().fill(.white.opacity(0.14)).frame(width: 1, height: 18)
-            Caption(text: "THE DIGITAL DARKROOM")
-            Spacer()
-            Button { batchExport = true } label: { Label("Batch", systemImage: "square.stack") }.buttonStyle(.plain).disabled(library.photos.isEmpty || library.exporting || library.bypassedTool != nil).help("Develop and export multiple photographs")
-            Button(action: library.open) { Label("Import", systemImage: "plus") }.buttonStyle(.plain).help("Import photographs · ⌘O")
+    private func importDrop(_ providers: [NSItemProvider]) -> Bool {
+        for provider in providers {
+            _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                guard let url else { return }
+                Task { @MainActor in library.add([url]) }
+            }
+        }
+        return !providers.isEmpty
+    }
+    @ToolbarContentBuilder private var darkroomToolbar: some ToolbarContent {
+        ToolbarItem(placement: .navigation) {
+            Button(action: library.open) { Label("Import", systemImage: "plus") }
+                .help("Import photographs · ⌘O")
+        }
+        ToolbarItem(placement: .principal) {
+            Button { browsingFilms = true } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "camera.filters")
+                    Text(library.recipe.film.name).lineLimit(1)
+                    Image(systemName: "chevron.down").font(.system(size: 9))
+                }.frame(maxWidth: 190)
+            }
+            .help("Choose film · ⌥↑ / ⌥↓ to switch quickly")
+            .disabled(!library.canEdit)
+            .popover(isPresented: $browsingFilms) {
+                FilmBrowser().environmentObject(library)
+            }
+        }
+        ToolbarItem(placement: .automatic) { PreviewControls().fixedSize() }
+        ToolbarItem(placement: .automatic) {
+            Menu {
+                Button("Keep Version", action: library.keepVersion).disabled(!library.canExport)
+                VersionMenu()
+                ResetSettingsMenu()
+                Divider()
+                Button("Batch Export…") { batchExport = true }
+                    .disabled(library.photos.isEmpty || library.exporting || library.bypassedTool != nil)
+                Button("Close Image", action: library.removeSelected).disabled(library.selected == nil)
+            } label: { Label("More", systemImage: "ellipsis.circle") }
+            .help("Versions, reset, batch export and close image")
+        }
+        ToolbarItem(placement: .automatic) {
             Menu {
                 Button("JPEG · 95% quality") { library.export(format: "jpg") }
                 Button("TIFF · 16-bit") { library.export(format: "tiff") }
                 Button("PNG · Lossless") { library.export(format: "png") }
-            } label: { Label(library.exporting ? "Exporting…" : "Export", systemImage: "square.and.arrow.up").padding(.horizontal, 8).padding(.vertical, 5) }
-                .menuStyle(.borderlessButton).fixedSize().disabled(!library.canExport || library.exporting)
-        }.padding(.leading, 82).padding(.trailing, 24).frame(height: 64)
-    }
-    private var imageHeader: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(library.selected?.name ?? "Your next photograph").font(.system(size: 14, weight: .medium)).lineLimit(1)
-                Caption(text: library.selected.map { $0.url.pathExtension.uppercased() + (library.size.width > 0 ? "  /  \(Int(library.size.width)) × \(Int(library.size.height))" : "") } ?? "A LITTLE LIGHT. A DIFFERENT FEELING.")
-            }
-            Spacer()
-            if library.selected != nil {
-                Button { library.keepVersion() } label: { Label("Keep version", systemImage: "bookmark") }.buttonStyle(.borderless).disabled(!library.canExport)
-                VersionMenu()
-                ResetSettingsMenu().menuStyle(.borderlessButton).fixedSize()
-            }
-        }.padding(.horizontal, 28).frame(height: 64)
+            } label: { Label("Export", systemImage: "square.and.arrow.up") }
+                .disabled(!library.canExport || library.exporting).help("Export photograph")
+        }
+        ToolbarItem(placement: .automatic) {
+            Toggle(isOn: $library.sessionVisible) { Label("Session", systemImage: "rectangle.bottomthird.inset.filled") }
+                .help("Show or hide session · ⌥⌘S")
+        }
+        ToolbarItem(placement: .automatic) {
+            Toggle(isOn: $library.inspectorVisible) { Label("Adjustments", systemImage: "sidebar.right") }
+                .help("Show or hide adjustments · ⌥⌘I")
+        }
     }
 
     private var canvas: some View {
@@ -174,8 +199,8 @@ struct DarkroomView: View {
                         }
                     } else {
                         let ratio = image.size.width / max(1, image.size.height)
-                        let availableWidth = library.comparisonMode == .sideBySide ? (proxy.size.width - 80) / 2 : proxy.size.width - 64
-                        let w = min(max(1, availableWidth), max(1, proxy.size.height - 56) * ratio)
+                        let availableWidth = library.comparisonMode == .sideBySide ? (proxy.size.width - 48) / 2 : proxy.size.width - 32
+                        let w = min(max(1, availableWidth), max(1, proxy.size.height - 32) * ratio)
                         ImageComparison(image: image, size: CGSize(width: w, height: w / ratio))
                     }
                 } else if library.busy {
@@ -194,7 +219,7 @@ struct DarkroomView: View {
                     }
                 }
             }
-        }.padding(.horizontal, 16).padding(.bottom, 16)
+        }
             .focusable().focused($previewFocused)
             .onTapGesture(count: 2) { if library.canEdit && !library.placingLight && !library.editingMask && !library.directAdjustment && library.activeTool != .texture && !library.comparisonMode.isSplit { library.zoom.toggle() } }
             .simultaneousGesture(TapGesture().onEnded { previewFocused = true })
@@ -208,7 +233,7 @@ struct DarkroomView: View {
     }
     private var filmstrip: some View {
         HStack(spacing: 18) {
-            VStack(alignment: .leading, spacing: 6) { Caption(text: "SESSION"); Text(String(format: "%02d", library.photos.count)).font(.system(size: 22, weight: .light, design: .monospaced)) }.frame(width: 67)
+            Text("\(library.photos.count) \(library.photos.count == 1 ? "photo" : "photos")").font(.caption).foregroundStyle(.secondary)
             ScrollView(.horizontal) {
                 HStack(spacing: 10) {
                     ForEach(library.photos) { photo in
@@ -232,15 +257,17 @@ struct DarkroomView: View {
                     Button(action: library.open) { Image(systemName: "plus").frame(width: 54, height: 56).overlay(Rectangle().stroke(.white.opacity(0.14))) }.buttonStyle(.plain).help("Import photographs")
                 }.padding(3)
             }.scrollIndicators(.hidden)
-        }.padding(.horizontal, 28).frame(height: 86)
+        }.padding(.horizontal, 16).frame(height: 84)
     }
     private var footer: some View {
         HStack(spacing: 8) {
             if library.busy || library.exporting { ProgressView().controlSize(.mini).scaleEffect(0.7) } else { Circle().fill(Color.subtle).frame(width: 4, height: 4) }
             Text(library.status).font(.system(size: 10)).foregroundStyle(Color.subtle)
             Spacer()
-            Caption(text: "NONDESTRUCTIVE  /  LOCAL  /  YOURS")
-        }.padding(.horizontal, 24).frame(height: 32)
+            if library.size.width > 0 {
+                Text("\(Int(library.size.width)) × \(Int(library.size.height))").font(.system(size: 10)).foregroundStyle(Color.subtle)
+            }
+        }.padding(.horizontal, 16).frame(height: 22)
     }
 }
 

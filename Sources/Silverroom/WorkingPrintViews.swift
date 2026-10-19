@@ -112,11 +112,18 @@ struct WorkingInspector: View {
     @EnvironmentObject var library: Library
     var save: () -> Void
     var match: () -> Void
+    @State private var exploring = false
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                Picker("Adjustment", selection: Binding(get: { library.activeTool }, set: { library.chooseTool($0) })) {
+                    ForEach(PrintTool.allCases, id: \.self) { tool in
+                        Label(tool.rawValue, systemImage: tool.symbol).tag(tool)
+                    }
+                }.labelsHidden().pickerStyle(.menu).controlSize(.large)
+                    .accessibilityLabel("Adjustment tool")
                 HStack {
-                    Label(library.activeTool.rawValue, systemImage: library.activeTool.symbol).font(.system(size: 18, weight: .light))
+                    Text("Adjustments").font(.headline)
                     Spacer()
                     Button(library.bypassedTool == nil ? "Preview off" : "Return to edit") {
                         library.bypassedTool = library.bypassedTool == nil ? library.activeTool : nil
@@ -137,8 +144,11 @@ struct WorkingInspector: View {
                 }
                 Divider()
                 HStack {
-                    Button("Explore") { library.bypassedTool = nil; library.explorationBase = library.recipe }
+                    Button("Explore") { library.bypassedTool = nil; library.explorationBase = library.recipe; exploring = true }
                         .disabled(!library.canEdit || (library.activeTool == .local && library.activeMaskID == nil))
+                        .popover(isPresented: $exploring) { FilmRibbon().frame(width: 520).environmentObject(library) }
+                        .onChange(of: library.explorationBase == nil) { _, ended in if ended { exploring = false } }
+                        .onChange(of: exploring) { _, shown in if !shown { library.explorationBase = nil } }
                     Spacer()
                     Button("Reset " + library.activeTool.rawValue) { library.resetTool() }.disabled(!library.canEdit)
                 }.buttonStyle(.borderless).font(.system(size: 11))

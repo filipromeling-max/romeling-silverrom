@@ -12,7 +12,7 @@ enum ComparisonMode: String, CaseIterable {
 struct PreviewControls: View {
     @EnvironmentObject var library: Library
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 10) {
             Menu {
                 Picker("Comparison", selection: $library.comparisonMode) {
                     ForEach(ComparisonMode.allCases, id: \.self) { Text($0 == .original && library.comparisonVersionID != nil ? "Reference only" : $0.rawValue).tag($0) }
@@ -30,7 +30,6 @@ struct PreviewControls: View {
                 Slider(value: $library.splitPosition, in: 0...1).frame(width: 70).accessibilityLabel("Comparison divider position")
                     .help("Move the divider, or drag it on the photograph")
             }
-            Spacer(minLength: 8)
             HStack(spacing: 8) {
                 Button { library.stepZoom(-1) } label: { Image(systemName: "minus").frame(width: 24, height: 24) }
                     .disabled(library.zoomLevel == 0.25).help("Zoom out · ⌘−").accessibilityLabel("Zoom out")
