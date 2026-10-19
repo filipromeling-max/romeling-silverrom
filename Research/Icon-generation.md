@@ -13,3 +13,7 @@ Precise cleanup of this completed macOS app icon. Keep the brushed champagne-sil
 ## Packaging
 
 Final artwork: `Assets/RomelingSilverroom-Icon.png`. The build script resamples the artwork with AppKit into the ten standard iconset representations (16 through 1024 pixels) and packages `AppIcon.icns`. The native app declares it through `CFBundleIconFile`. Transparency is preserved. Native icon representations are clipped to the rounded tile silhouette during packaging, leaving the generated source unchanged.
+
+## Flat charcoal update — 1.5.1
+
+Replaced the metallic artwork using the built-in image tool: dark charcoal background matching the app, white blackletter r, subtle mid-gray aperture lines, flat styling without bevels or shadows. Updated native icon representations and website assets.
