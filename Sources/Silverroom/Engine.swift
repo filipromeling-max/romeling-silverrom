@@ -32,6 +32,14 @@ struct Engine {
         base = base.applyingFilter("CITemperatureAndTint", parameters: ["inputNeutral": CIVector(x: 6500 + r.warmth * 2000, y: r.tint * 80), "inputTargetNeutral": CIVector(x: 6500, y: 0)])
         base = base.applyingFilter("CIHighlightShadowAdjust", parameters: ["inputHighlightAmount": 1 - r.highlights * 0.8, "inputShadowAmount": r.shadows])
         base = base.applyingFilter("CIColorControls", parameters: [kCIInputContrastKey: r.contrast, kCIInputSaturationKey: r.saturation])
+        if r.shadowBalance != 0 || r.highlightBalance != 0 {
+            base = base.applyingFilter("CIToneCurve", parameters: [
+                "inputPoint0": CIVector(x: 0, y: 0),
+                "inputPoint1": CIVector(x: 0.25, y: 0.25 + r.shadowBalance * 0.14),
+                "inputPoint2": CIVector(x: 0.5, y: 0.5 + (r.shadowBalance + r.highlightBalance) * 0.025),
+                "inputPoint3": CIVector(x: 0.75, y: 0.75 + r.highlightBalance * 0.14),
+                "inputPoint4": CIVector(x: 1, y: 1)])
+        }
         var film = exposureResponse(base, recipe: r).applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: f.saturation, kCIInputContrastKey: f.contrast])
         film = film.applyingFilter("CIColorMatrix", parameters: [
             "inputRVector": CIVector(x: 1 + f.warmth * 0.18, y: 0, z: 0, w: 0),

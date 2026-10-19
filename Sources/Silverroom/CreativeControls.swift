@@ -39,11 +39,15 @@ struct RecipeSlider: View {
                 if hue { Circle().fill(Color(hue: library.recipe[keyPath: key], saturation: 0.7, brightness: 0.9)).frame(width: 8, height: 8).accessibilityHidden(true) }
                 Text(title).font(.system(size: 12))
                 Spacer()
-                Text(String(format: format, library.recipe[keyPath: key] * multiplier) + suffix).font(.system(size: 10, design: .monospaced)).foregroundStyle(Color.subtle)
+                TextField(title, value: Binding(get: { library.recipe[keyPath: key] * multiplier }, set: { value in library.change { $0[keyPath: key] = min(range.upperBound, max(range.lowerBound, value / multiplier)) } }), format: .number.precision(.fractionLength(0...2)))
+                    .textFieldStyle(.plain).multilineTextAlignment(.trailing).font(.system(size: 11, design: .monospaced)).frame(width: 55)
+                    .accessibilityLabel(title + " value").disabled(!library.canEdit)
+                if !suffix.isEmpty { Text(suffix).font(.system(size: 10)).foregroundStyle(Color.subtle) }
             }
             Slider(value: Binding(get: { library.recipe[keyPath: key] }, set: { value in library.change { $0[keyPath: key] = value } }), in: range, onEditingChanged: library.adjustmentGesture)
                 .controlSize(.small).accessibilityLabel(title).disabled(!library.canEdit)
-        }
+        }.contextMenu { Button("Reset " + title) { library.adjustmentGesture(false); library.change { $0[keyPath: key] = Recipe()[keyPath: key] } } }
+            .help("Drag the slider or enter a value. Right-click to reset this control.")
     }
 }
 
@@ -125,120 +129,6 @@ struct FilmBrowser: View {
             }
             HStack { Text("Film-inspired interpretations").font(.system(size: 10)).foregroundStyle(Color.subtle); Spacer(); Button("Done") { dismiss() }.keyboardShortcut(.cancelAction) }
         }.padding(20).frame(width: 430, height: 460).background(Color.panel)
-    }
-}
-
-struct DevelopmentInspector: View {
-    @EnvironmentObject var library: Library
-    var save: () -> Void
-    @State private var browsing = false
-    @State private var toneExpanded = false
-    @State private var splitExpanded = false
-    @State private var textureExpanded = true
-    @State private var lightExpanded = false
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                HStack { Caption(text: "01 / EMULSION"); Spacer(); Text("\(Film.all.count) films").font(.system(size: 10)).foregroundStyle(Color.subtle) }
-                Button { browsing = true } label: {
-                    HStack(spacing: 12) {
-                        Rectangle().fill(Color(hex: library.recipe.film.color)).frame(width: 3, height: 38)
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text(library.recipe.film.name).font(.system(size: 18, weight: .light))
-                            Text(library.recipe.film.maker + "  /  ISO " + library.recipe.film.iso).font(.system(size: 9)).tracking(1).foregroundStyle(Color.subtle)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.up.chevron.down").font(.system(size: 10))
-                    }.contentShape(Rectangle())
-                }.buttonStyle(.plain).help("Browse and search all film stocks").accessibilityLabel("Browse films. Selected \(library.recipe.film.name)")
-                    .focusable().onKeyPress(.upArrow) { guard library.canEdit else { return .ignored }; library.stepFilm(-1); return .handled }
-                    .onKeyPress(.downArrow) { guard library.canEdit else { return .ignored }; library.stepFilm(1); return .handled }
-                    .popover(isPresented: $browsing, arrowEdge: .top) { FilmBrowser().environmentObject(library) }
-                HStack {
-                    Button { library.stepFilm(-1) } label: { Label("Previous", systemImage: "chevron.up").frame(minHeight: 24) }.help("Previous film · ⌥↑")
-                    Spacer()
-                    Button { library.stepFilm(1) } label: { Label("Next", systemImage: "chevron.down").frame(minHeight: 24) }.help("Next film · ⌥↓")
-                }.buttonStyle(.borderless).disabled(!library.canEdit)
-                Text(library.recipe.film.note).font(.system(size: 11)).foregroundStyle(Color.subtle).lineSpacing(3).fixedSize(horizontal: false, vertical: true)
-                RecipeSlider(title: "Film strength", key: \.amount, suffix: "%")
-                DevelopmentControls()
-                Divider()
-                Caption(text: "02 / CHARACTER")
-                Menu {
-                    ForEach(Treatment.allCases, id: \.self) { treatment in Button(treatment.rawValue) { library.change { treatment.apply(to: &$0) } } }
-                } label: { Label("Apply a creative treatment", systemImage: "wand.and.stars") }.disabled(!library.canEdit).help("Starting points for finishing. Your film, exposure and white balance stay unchanged.")
-                RecipeSlider(title: "Exposure", key: \.exposure, range: -3...3, multiplier: 1, format: "%+.2f", suffix: " EV")
-                ColorField()
-                DisclosureGroup("Tone & color response", isExpanded: $toneExpanded) {
-                    VStack(spacing: 18) {
-                        RecipeSlider(title: "Contrast", key: \.contrast, range: 0.7...1.3)
-                        RecipeSlider(title: "Saturation", key: \.saturation, range: 0...2)
-                        RecipeSlider(title: "Highlight recovery", key: \.highlights)
-                        RecipeSlider(title: "Shadow lift", key: \.shadows)
-                        RecipeSlider(title: "Faded blacks", key: \.fade)
-                        RecipeSlider(title: "Black depth", key: \.blackPoint)
-                        RecipeSlider(title: "Cross-process", key: \.crossProcess)
-                    }.padding(.top, 16)
-                }.font(.system(size: 12))
-                DisclosureGroup("Split toning", isExpanded: $splitExpanded) {
-                    VStack(spacing: 18) {
-                        Text("Color the shadows and highlights independently. Set an amount to bring each hue into the image.").font(.system(size: 10)).foregroundStyle(Color.subtle)
-                        RecipeSlider(title: "Shadow hue", key: \.shadowHue, multiplier: 360, suffix: "°", hue: true)
-                        RecipeSlider(title: "Shadow color", key: \.shadowTone)
-                        RecipeSlider(title: "Highlight hue", key: \.highlightHue, multiplier: 360, suffix: "°", hue: true)
-                        RecipeSlider(title: "Highlight color", key: \.highlightTone)
-                    }.padding(.top, 16)
-                }.font(.system(size: 12))
-                Divider()
-                Caption(text: "03 / LIGHT & SURFACE")
-                DisclosureGroup("Light leaks & bloom", isExpanded: $lightExpanded) {
-                    VStack(spacing: 18) {
-                        RecipeSlider(title: "Bloom", key: \.bloom)
-                        RecipeSlider(title: "Bloom spread", key: \.bloomRadius)
-                        RecipeSlider(title: "Light leak", key: \.lightLeak)
-                        Button {
-                            library.editingMask = false; library.placingLight.toggle()
-                            if library.placingLight {
-                                library.compare = false; library.zoom = false
-                                if library.recipe.lightLeak == 0 { library.change { $0.lightLeak = 0.4 } }
-                            }
-                        } label: { Label(library.placingLight ? "Done placing light" : "Place light on photograph", systemImage: "scope") }
-                            .disabled(!library.canEdit).help("Click or drag on the photograph to position the light leak.")
-                        RecipeSlider(title: "Leak hue", key: \.leakHue, multiplier: 360, suffix: "°", hue: true)
-                        RecipeSlider(title: "Leak spread", key: \.leakSize)
-                        DisclosureGroup("Position precisely") {
-                            VStack(spacing: 18) {
-                                RecipeSlider(title: "Leak horizontal position", key: \.leakX, suffix: "%")
-                                RecipeSlider(title: "Leak vertical position", key: \.leakY, suffix: "%")
-                            }.padding(.top, 16)
-                        }.font(.system(size: 10))
-                    }.padding(.top, 16)
-                }.font(.system(size: 12))
-                DisclosureGroup("Grain, halation & vignette", isExpanded: $textureExpanded) {
-                    VStack(spacing: 18) {
-                        RecipeSlider(title: "Grain amount", key: \.grain, range: 0...8, suffix: "%")
-                        RecipeSlider(title: "Grain size", key: \.grainSize, range: 0.5...8, multiplier: 1, format: "%.1f", suffix: "×")
-                        GrainControls()
-                        RecipeSlider(title: "Halation", key: \.halation, range: 0...2)
-                        RecipeSlider(title: "Vignette", key: \.vignette, range: 0...2, multiplier: 50)
-                        Text("Grain amount: 100% is the stock’s default, up to 800% for heavy texture. Grain size reaches 8×. Judge texture at 100% zoom. Film strength also affects grain.").font(.system(size: 10)).foregroundStyle(Color.subtle)
-                    }.padding(.top, 16)
-                }.font(.system(size: 12))
-                HalationControls()
-                Divider()
-                ScannerControls()
-                LocalMaskControls()
-                Divider()
-                HStack {
-                    Menu("Recipes") {
-                        if library.recipes.isEmpty { Text("No saved recipes") }
-                        ForEach(library.recipes) { saved in Button(saved.name) { library.change { $0 = saved.recipe } } }
-                    }.disabled(!library.canEdit)
-                    Button("Save…", action: save).disabled(!library.canEdit)
-                }
-                Text("Film-inspired profiles. Crafted interpretations, not calibrated reproductions.").font(.system(size: 10)).foregroundStyle(Color.subtle).lineSpacing(3)
-            }.padding(24)
-        }.background(Color.panel)
     }
 }
 

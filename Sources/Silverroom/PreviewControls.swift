@@ -15,9 +15,16 @@ struct PreviewControls: View {
         HStack(spacing: 16) {
             Menu {
                 Picker("Comparison", selection: $library.comparisonMode) {
-                    ForEach(ComparisonMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    ForEach(ComparisonMode.allCases, id: \.self) { Text($0 == .original && library.comparisonVersionID != nil ? "Reference only" : $0.rawValue).tag($0) }
                 }.pickerStyle(.inline)
-            } label: { Label(library.comparisonMode == .developed ? "Compare" : library.comparisonMode.rawValue, systemImage: "rectangle.lefthalf.inset.filled") }
+                Divider()
+                Menu("Compare against") {
+                    Button("Original photograph") { library.comparisonVersionID = nil }
+                    ForEach(library.selected?.versions ?? []) { version in
+                        Button(version.name) { library.comparisonVersionID = version.id; if library.comparisonMode == .developed { library.comparisonMode = .sideBySide } }
+                    }
+                }
+            } label: { Label(library.comparisonMode == .developed ? "Compare" : (library.comparisonMode == .original && library.comparisonVersionID != nil ? "Reference only" : library.comparisonMode.rawValue), systemImage: "rectangle.lefthalf.inset.filled") }
                 .menuStyle(.borderlessButton).fixedSize().help("Choose a comparison view. B toggles original / developed.")
             if library.comparisonMode.isSplit {
                 Slider(value: $library.splitPosition, in: 0...1).frame(width: 70).accessibilityLabel("Comparison divider position")
@@ -48,16 +55,19 @@ struct ImageComparison: View {
     let size: CGSize
     var body: some View {
         Group {
-            if library.comparisonMode == .sideBySide, let original = library.original {
+            if library.comparisonVersionID != nil && library.versionPreview == nil {
+                Image(nsImage: image).resizable().frame(width: size.width, height: size.height)
+                    .overlay { Text("Preparing comparison…").padding(10).background(.black.opacity(0.75)) }
+            } else if library.comparisonMode == .sideBySide, let original = library.comparisonImage {
                 HStack(spacing: 16) {
-                    labeled(original, title: "ORIGINAL")
+                    labeled(original, title: library.referenceName.uppercased())
                     labeled(image, title: "DEVELOPED")
                 }
             } else {
                 ZStack(alignment: .topLeading) {
-                    Image(nsImage: library.comparisonMode == .original ? (library.original ?? image) : image)
+                    Image(nsImage: library.comparisonMode == .original ? (library.comparisonImage ?? image) : image)
                         .resizable().frame(width: size.width, height: size.height)
-                    if library.comparisonMode.isSplit, let original = library.original {
+                    if library.comparisonMode.isSplit, let original = library.comparisonImage {
                         let vertical = library.comparisonMode == .vertical
                         Image(nsImage: original).resizable().frame(width: size.width, height: size.height)
                             .mask(alignment: .topLeading) {
@@ -75,13 +85,17 @@ struct ImageComparison: View {
                         Color.clear.contentShape(Rectangle()).gesture(DragGesture(minimumDistance: 0).onChanged { value in
                             library.splitPosition = min(1, max(0, vertical ? value.location.x / size.width : value.location.y / size.height))
                         }).accessibilityHidden(true)
-                        VStack { HStack { badge("ORIGINAL"); Spacer(); if vertical { badge("DEVELOPED") } }; Spacer(); if !vertical { HStack { Spacer(); badge("DEVELOPED") } } }.padding(8).allowsHitTesting(false)
+                        VStack { HStack { badge(library.referenceName.uppercased()); Spacer(); if vertical { badge("DEVELOPED") } }; Spacer(); if !vertical { HStack { Spacer(); badge("DEVELOPED") } } }.padding(8).allowsHitTesting(false)
                     } else if library.comparisonMode == .original {
-                        badge("ORIGINAL").padding(8)
+                        badge(library.referenceName.uppercased()).padding(8)
                     }
                     if library.showMask && library.comparisonMode == .developed, let mask = library.maskPreview {
                         Rectangle().fill(.red.opacity(0.35)).frame(width: size.width, height: size.height)
                             .mask { Image(nsImage: mask).resizable().luminanceToAlpha() }.allowsHitTesting(false)
+                    }
+                    if library.comparisonMode == .developed && !library.zoom && !library.editingMask && !library.placingLight {
+                        if library.directAdjustment { ImageAdjustmentSurface(size: size) }
+                        else if library.activeTool == .texture && library.loupeVisible { TextureTarget(size: size) }
                     }
                     if library.placingLight && library.canEdit { LightPlacement(size: size) }
                     if library.editingMask && library.canEdit { MaskPlacement(size: size) }
@@ -90,7 +104,7 @@ struct ImageComparison: View {
         }.accessibilityElement(children: .ignore).accessibilityLabel(library.comparisonMode.rawValue + " photograph")
     }
     private func badge(_ text: String) -> some View {
-        Text(text).font(.system(size: 10, weight: .medium)).tracking(1).padding(6).background(.black.opacity(0.7))
+        Text(text).font(.system(size: 10, weight: .medium)).tracking(1).padding(6).lineLimit(1).background(.black.opacity(0.7))
     }
     private func labeled(_ image: NSImage, title: String) -> some View {
         Image(nsImage: image).resizable().frame(width: size.width, height: size.height)

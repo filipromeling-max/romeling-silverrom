@@ -7,14 +7,32 @@ struct Photograph: Identifiable {
     var url: URL
     var recipe: Recipe
     var thumbnail: NSImage?
+    var versions: [KeptVersion] = []
     var name: String { url.deletingPathExtension().lastPathComponent }
 }
 enum HistoryAction {
     case adjustment(UUID, Recipe)
     case reopen(Photograph, Int, UUID?)
     case close(UUID)
+    case versions(UUID, [KeptVersion])
 }
 @MainActor final class Library: ObservableObject {
+    @Published var activeTool: PrintTool = .light
+    @Published var bypassedTool: PrintTool?
+    @Published var directAdjustment = false
+    @Published var autoLightTarget = true
+    @Published var lightRegion: LightRegion = .exposure
+    @Published var glowTool: GlowTool = .halation
+    @Published var loupePoint = MaskPoint(x: 0.5, y: 0.5)
+    @Published var loupeImage: NSImage?
+    @Published var loupeVisible = true
+    @Published var versionPreview: NSImage?
+    @Published var comparisonVersionID: UUID?
+    @Published var explorationBase: Recipe?
+    @Published var favoriteFilms: Set<String> = []
+    @Published var favoritesOnly = false
+    var workingImage: CIImage? { previewSource }
+    var workingImageID: String { (selectedID?.uuidString ?? "") + String(busy) }
     @Published var photos: [Photograph] = []
     @Published var selectedID: UUID?
     @Published var preview: NSImage?
@@ -44,13 +62,16 @@ enum HistoryAction {
         zoomLevel = Self.zoomSteps[min(Self.zoomSteps.count - 1, max(0, index + direction))]
     }
     func stepFilm(_ direction: Int) {
-        let films = Self.orderedFilms
-        let index = films.firstIndex { $0.id == recipe.filmID } ?? 0
+        let films = filmChoices
+        guard let index = films.firstIndex(where: { $0.id == recipe.filmID }) else {
+            if let film = direction > 0 ? films.first : films.last { change { $0.filmID = film.id } }
+            return
+        }
         let next = (index + direction % films.count + films.count) % films.count
         adjustmentGesture(false)
         change { $0.filmID = films[next].id }
     }
-    func toggleOriginal() { comparisonMode = comparisonMode == .original ? .developed : .original }
+    func toggleOriginal() { comparisonVersionID = nil; versionPreview = nil; comparisonMode = comparisonMode == .original ? .developed : .original }
     @Published var activeMaskID: UUID?
     @Published var editingMask = false
     @Published var showMask = false
@@ -91,9 +112,10 @@ enum HistoryAction {
         directory = storageDirectory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Silverroom")
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         if restore {
+            if let data = try? Data(contentsOf: directory.appendingPathComponent("favorites.json")), let ids = try? JSONDecoder().decode([String].self, from: data) { favoriteFilms = Set(ids) }
             if let data = try? Data(contentsOf: directory.appendingPathComponent("recipes.json")), let saved = try? JSONDecoder().decode([SavedRecipe].self, from: data) { recipes = saved }
             if let data = try? Data(contentsOf: directory.appendingPathComponent("session.json")), let records = try? JSONDecoder().decode([PhotoRecord].self, from: data) {
-                photos = records.map { Photograph(url: URL(fileURLWithPath: $0.path), recipe: $0.recipe) }
+                photos = records.map { Photograph(url: URL(fileURLWithPath: $0.path), recipe: $0.recipe, versions: $0.versions) }
                 if let first = photos.first { select(first.id) }
             }
         }
@@ -135,6 +157,7 @@ enum HistoryAction {
         let token = generation
         renderTask?.cancel()
         placingLight = false; editingMask = false; activeMaskID = nil; maskPreview = nil; showMask = false; adjustmentGesture(false)
+        bypassedTool = nil; directAdjustment = false; explorationBase = nil; comparisonVersionID = nil; versionPreview = nil; loupeImage = nil
         selectedID = id; source = nil; previewSource = nil; preview = nil; original = nil
         size = .zero; busy = true; zoom = false; status = "Opening \(item.url.lastPathComponent)…"
         queue.async { [weak self] in
@@ -160,6 +183,7 @@ enum HistoryAction {
     }
     func change(_ edit: (inout Recipe) -> Void) {
         guard let index = photos.firstIndex(where: { $0.id == selectedID }) else { return }
+        bypassedTool = nil
         let old = photos[index].recipe
         var new = old; edit(&new)
         guard new != old else { return }
@@ -170,11 +194,13 @@ enum HistoryAction {
     }
     func adjustmentGesture(_ active: Bool) { groupingAdjustment = active; recordedAdjustment = false }
     func undo() {
+        bypassedTool = nil
         adjustmentGesture(false)
         guard let action = undoStack.popLast(), let inverse = apply(action) else { return }
         redoStack.append(inverse)
     }
     func redo() {
+        bypassedTool = nil
         adjustmentGesture(false)
         guard let action = redoStack.popLast(), let inverse = apply(action) else { return }
         undoStack.append(inverse)
@@ -195,12 +221,21 @@ enum HistoryAction {
             return .close(photo.id)
         case let .close(id):
             return closePhoto(id)
+        case let .versions(id, versions):
+            guard let index = photos.firstIndex(where: { $0.id == id }) else { return nil }
+            let inverse = HistoryAction.versions(id, photos[index].versions)
+            photos[index].versions = versions
+            if selectedID == id, !versions.contains(where: { $0.id == comparisonVersionID }) { comparisonVersionID = nil; versionPreview = nil }
+            persist(); render(); return inverse
         }
     }
     func render() {
         guard let input = zoom ? source : previewSource else { return }
         generation += 1
-        let token = generation, recipe = recipe, width = size.width
+        let token = generation, recipe = displayedRecipe, width = size.width
+        let versionRecipe = selected?.versions.first { $0.id == comparisonVersionID }?.recipe
+        let fullSource = source, point = loupePoint
+        let needsLoupe = activeTool == .texture && loupeVisible
         let activeMask = showMask ? recipe.masks.first { $0.id == activeMaskID } : nil
         renderTask?.cancel()
         status = "Developing…"
@@ -208,6 +243,13 @@ enum HistoryAction {
             do {
                 let cg = try Engine.cgImage(Engine.develop(input, recipe: recipe, originalWidth: width))
                 let originalCG = try Engine.cgImage(input)
+                let versionCG = try versionRecipe.map { try Engine.cgImage(Engine.develop(input, recipe: $0, originalWidth: width)) }
+                var loupeCG: CGImage?
+                if needsLoupe, let fullSource {
+                    let e = fullSource.extent, side = min(256, min(e.width, e.height))
+                    let rect = CGRect(x: max(0, min(e.width - side, point.x * e.width - side / 2)), y: max(0, min(e.height - side, (1 - point.y) * e.height - side / 2)), width: side, height: side).integral
+                    loupeCG = try Engine.cgImage(Engine.develop(fullSource, recipe: recipe).cropped(to: rect))
+                }
                 let maskCG: CGImage?
                 if let activeMask {
                     var unmasked = recipe; unmasked.masks = []
@@ -216,7 +258,7 @@ enum HistoryAction {
                 } else { maskCG = nil }
                 DispatchQueue.main.async {
                     guard let self, self.generation == token else { return }
-                    self.maskPreview = maskCG.map { NSImage(cgImage: $0, size: .zero) }; self.preview = NSImage(cgImage: cg, size: .zero); self.original = NSImage(cgImage: originalCG, size: .zero); self.status = "All adjustments saved"
+                    self.versionPreview = versionCG.map { NSImage(cgImage: $0, size: .zero) }; self.loupeImage = loupeCG.map { NSImage(cgImage: $0, size: .zero) }; self.maskPreview = maskCG.map { NSImage(cgImage: $0, size: .zero) }; self.preview = NSImage(cgImage: cg, size: .zero); self.original = NSImage(cgImage: originalCG, size: .zero); self.status = "All adjustments saved"
                 }
             } catch {
                 let message = error.localizedDescription
@@ -230,6 +272,29 @@ enum HistoryAction {
         adjustmentGesture(false)
         let filmID = recipe.filmID
         change { $0 = Recipe(); if keepingFilm { $0.filmID = filmID } }
+    }
+    func toggleFavorite(_ id: String) {
+        if favoriteFilms.contains(id) { favoriteFilms.remove(id) } else { favoriteFilms.insert(id) }
+        do { try JSONEncoder().encode(favoriteFilms.sorted()).write(to: directory.appendingPathComponent("favorites.json"), options: .atomic) }
+        catch { self.error = "Could not save favorite films: \(error.localizedDescription)" }
+    }
+    func keepVersion() {
+        guard let index = photos.firstIndex(where: { $0.id == selectedID }) else { return }
+        undoStack.append(.versions(photos[index].id, photos[index].versions)); redoStack.removeAll()
+        let number = (photos[index].versions.compactMap { Int($0.name.split(separator: " ").dropFirst().first ?? "") }.max() ?? 0) + 1
+        photos[index].versions.append(KeptVersion(name: "Version \(number) · \(recipe.film.name)", recipe: recipe))
+        persist(); status = "Version kept"
+    }
+    func deleteVersion(_ id: UUID) {
+        guard let index = photos.firstIndex(where: { $0.id == selectedID }) else { return }
+        undoStack.append(.versions(photos[index].id, photos[index].versions)); redoStack.removeAll()
+        photos[index].versions.removeAll { $0.id == id }
+        if comparisonVersionID == id { comparisonVersionID = nil; versionPreview = nil }
+        persist(); render()
+    }
+    func restoreVersion(_ id: UUID) {
+        guard let version = selected?.versions.first(where: { $0.id == id }) else { return }
+        adjustmentGesture(false); change { $0 = version.recipe }
     }
     func saveRecipe(name: String) {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -254,14 +319,14 @@ enum HistoryAction {
             else {
                 generation += 1; renderTask?.cancel()
                 selectedID = nil; preview = nil; original = nil; source = nil; previewSource = nil
-                size = .zero; busy = false; compare = false; zoom = false; placingLight = false; editingMask = false; maskPreview = nil; activeMaskID = nil; showMask = false
+                size = .zero; busy = false; compare = false; zoom = false; placingLight = false; editingMask = false; maskPreview = nil; activeMaskID = nil; showMask = false; versionPreview = nil; comparisonVersionID = nil; loupeImage = nil; bypassedTool = nil; directAdjustment = false; explorationBase = nil
                 status = "Ready for your next frame"
             }
         }
         return inverse
     }
     func export(format: String) {
-        guard let image = source, let selected else { return }
+        guard bypassedTool == nil, let image = source, let selected else { return }
         let panel = NSSavePanel()
         panel.title = "Export developed photograph"
         panel.allowedContentTypes = [format == "tiff" ? .tiff : format == "png" ? .png : .jpeg]
@@ -282,7 +347,7 @@ enum HistoryAction {
     }
     private func persist() {
         do {
-            let records = photos.map { PhotoRecord(path: $0.url.path, recipe: $0.recipe) }
+            let records = photos.map { PhotoRecord(path: $0.url.path, recipe: $0.recipe, versions: $0.versions) }
             try JSONEncoder().encode(records).write(to: directory.appendingPathComponent("session.json"), options: .atomic)
             try JSONEncoder().encode(recipes).write(to: directory.appendingPathComponent("recipes.json"), options: .atomic)
         } catch { self.error = "Your adjustments could not be saved: \(error.localizedDescription)" }

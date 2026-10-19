@@ -19,7 +19,7 @@ import AppKit
                     Button("JPEG…") { library.export(format: "jpg") }.keyboardShortcut("e", modifiers: [.command, .shift])
                     Button("16-bit TIFF…") { library.export(format: "tiff") }
                     Button("PNG…") { library.export(format: "png") }
-                }.disabled(!library.canEdit || library.exporting)
+                }.disabled(!library.canExport || library.exporting)
             }
             CommandGroup(replacing: .undoRedo) {
                 Button("Undo", action: library.undo).keyboardShortcut("z").disabled(library.undoStack.isEmpty)
@@ -74,21 +74,31 @@ struct DarkroomView: View {
                     imageHeader
                     PreviewControls().padding(.horizontal, 24).frame(height: 42)
                     canvas
+                    PrintToolBar()
+                    FilmRibbon()
                     filmstrip
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
                 Divider()
-                DevelopmentInspector { recipeName = library.recipe.film.name + " · Custom"; savingRecipe = true }.frame(width: 320)
+                WorkingInspector(save: { recipeName = library.recipe.film.name + " · Custom"; savingRecipe = true }, match: { referencePhoto = library.selected }).frame(width: 300)
             }
             Divider()
             footer
         }
         .background(Color.room)
         .onChange(of: library.selectedID) { _, id in previewFocused = id != nil }
-        .onChange(of: library.zoomLevel) { old, level in if level != 0 { library.placingLight = false; library.editingMask = false }; if old == 0 || level == 0 { library.render() } }
-        .onChange(of: library.compare) { _, comparing in if comparing { library.placingLight = false; library.editingMask = false } }
+        .onChange(of: library.zoomLevel) { old, level in if level != 0 { library.placingLight = false; library.editingMask = false; library.directAdjustment = false }; if old == 0 || level == 0 { library.render() } }
+        .onChange(of: library.compare) { _, comparing in if comparing { library.placingLight = false; library.editingMask = false; library.directAdjustment = false } }
         .onChange(of: library.recipe.masks.map(\.id)) { _, ids in
             if let id = library.activeMaskID, !ids.contains(id) { library.activeMaskID = nil; library.editingMask = false }
         }
+        .onChange(of: library.directAdjustment) { _, active in if active { previewFocused = true } }
+        .onChange(of: library.editingMask) { _, active in if active { previewFocused = true } }
+        .onChange(of: library.placingLight) { _, active in if active { previewFocused = true } }
+        .onChange(of: library.glowTool) { _, _ in library.directAdjustment = false; library.placingLight = false }
+        .onChange(of: library.comparisonVersionID) { _, _ in library.versionPreview = nil; library.render() }
+        .onChange(of: library.bypassedTool) { _, _ in library.render() }
+        .onChange(of: library.loupePoint) { _, _ in library.render() }
+        .onChange(of: library.loupeVisible) { _, _ in library.render() }
         .onChange(of: library.activeMaskID) { _, _ in library.render() }
         .onChange(of: library.showMask) { _, _ in library.render() }
         .tint(Color.accent)
@@ -122,14 +132,14 @@ struct DarkroomView: View {
             Rectangle().fill(.white.opacity(0.14)).frame(width: 1, height: 18)
             Caption(text: "THE DIGITAL DARKROOM")
             Spacer()
-            Button { batchExport = true } label: { Label("Batch", systemImage: "square.stack") }.buttonStyle(.plain).disabled(library.photos.isEmpty || library.exporting).help("Develop and export multiple photographs")
+            Button { batchExport = true } label: { Label("Batch", systemImage: "square.stack") }.buttonStyle(.plain).disabled(library.photos.isEmpty || library.exporting || library.bypassedTool != nil).help("Develop and export multiple photographs")
             Button(action: library.open) { Label("Import", systemImage: "plus") }.buttonStyle(.plain).help("Import photographs · ⌘O")
             Menu {
                 Button("JPEG · 95% quality") { library.export(format: "jpg") }
                 Button("TIFF · 16-bit") { library.export(format: "tiff") }
                 Button("PNG · Lossless") { library.export(format: "png") }
             } label: { Label(library.exporting ? "Exporting…" : "Export", systemImage: "square.and.arrow.up").padding(.horizontal, 8).padding(.vertical, 5) }
-                .menuStyle(.borderlessButton).fixedSize().disabled(!library.canEdit || library.exporting)
+                .menuStyle(.borderlessButton).fixedSize().disabled(!library.canExport || library.exporting)
         }.padding(.leading, 82).padding(.trailing, 24).frame(height: 64)
     }
     private var imageHeader: some View {
@@ -140,7 +150,8 @@ struct DarkroomView: View {
             }
             Spacer()
             if library.selected != nil {
-                Button { referencePhoto = library.selected } label: { Label("Match reference", systemImage: "photo.on.rectangle") }.buttonStyle(.borderless).disabled(!library.canEdit)
+                Button { library.keepVersion() } label: { Label("Keep version", systemImage: "bookmark") }.buttonStyle(.borderless).disabled(!library.canExport)
+                VersionMenu()
                 ResetSettingsMenu().menuStyle(.borderlessButton).fixedSize()
             }
         }.padding(.horizontal, 28).frame(height: 64)
@@ -151,7 +162,12 @@ struct DarkroomView: View {
             ZStack {
                 Color(hex: 0x101111)
                 if let image = library.preview ?? library.original {
-                    if library.zoom {
+                    if library.zoom && library.comparisonMode == .sideBySide, let reference = library.comparisonImage {
+                        AlignedComparison(left: reference, right: image, imageSize: CGSize(width: library.size.width * library.zoomLevel / displayScale, height: library.size.height * library.zoomLevel / displayScale))
+                            .overlay(alignment: .top) {
+                                HStack { Text(library.referenceName.uppercased()); Spacer(); Text("CURRENT EDIT") }.font(.system(size: 10, weight: .medium)).padding(8).background(.black.opacity(0.6)).allowsHitTesting(false)
+                            }
+                    } else if library.zoom {
                         ScrollView([.horizontal, .vertical]) {
                             ImageComparison(image: image, size: CGSize(width: library.size.width * library.zoomLevel / displayScale, height: library.size.height * library.zoomLevel / displayScale))
                                 .frame(minWidth: proxy.size.width, minHeight: proxy.size.height)
@@ -180,8 +196,12 @@ struct DarkroomView: View {
             }
         }.padding(.horizontal, 16).padding(.bottom, 16)
             .focusable().focused($previewFocused)
-            .onTapGesture(count: 2) { if library.canEdit && !library.placingLight && !library.editingMask && !library.comparisonMode.isSplit { library.zoom.toggle() } }
+            .onTapGesture(count: 2) { if library.canEdit && !library.placingLight && !library.editingMask && !library.directAdjustment && library.activeTool != .texture && !library.comparisonMode.isSplit { library.zoom.toggle() } }
             .simultaneousGesture(TapGesture().onEnded { previewFocused = true })
+            .onKeyPress(.escape) {
+                library.directAdjustment = false; library.editingMask = false; library.placingLight = false; library.explorationBase = nil
+                return .handled
+            }
             .onKeyPress(.upArrow) { guard library.canEdit else { return .ignored }; library.stepFilm(-1); return .handled }
             .onKeyPress(.downArrow) { guard library.canEdit else { return .ignored }; library.stepFilm(1); return .handled }
             .help("↑ / ↓ to switch films when the preview is focused. Scroll to pan when zoomed.")
@@ -212,7 +232,7 @@ struct DarkroomView: View {
                     Button(action: library.open) { Image(systemName: "plus").frame(width: 54, height: 56).overlay(Rectangle().stroke(.white.opacity(0.14))) }.buttonStyle(.plain).help("Import photographs")
                 }.padding(3)
             }.scrollIndicators(.hidden)
-        }.padding(.horizontal, 28).frame(height: 110)
+        }.padding(.horizontal, 28).frame(height: 86)
     }
     private var footer: some View {
         HStack(spacing: 8) {
@@ -228,6 +248,13 @@ struct ResetSettingsMenu: View {
     @EnvironmentObject var library: Library
     var body: some View {
         Menu {
+            Button("Reset " + library.activeTool.rawValue + " controls") { library.resetTool() }
+            if let id = library.activeMaskID, library.activeTool == .local {
+                Button("Reset selected mask adjustments") {
+                    library.editMask(id) { $0.exposure = 0; $0.warmth = 0; $0.saturation = 1; $0.contrast = 1; $0.softness = 0 }
+                }
+            }
+            Divider()
             Button("Reset Adjustments · Keep Film") { library.reset(keepingFilm: true) }
             Button("Reset All Settings") { library.reset() }
         } label: { Label("Reset", systemImage: "arrow.counterclockwise") }

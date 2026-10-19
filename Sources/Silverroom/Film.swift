@@ -50,6 +50,8 @@ struct Recipe: Codable, Equatable {
     var saturation = 1.0
     var highlights = 0.0
     var shadows = 0.0
+    var shadowBalance = 0.0
+    var highlightBalance = 0.0
     var grain = 1.0
     var halation = 1.0
     var vignette = 0.0
@@ -75,11 +77,13 @@ struct Recipe: Codable, Equatable {
 
     // Older sessions omit the new controls. Neutral defaults preserve their edits.
     enum CodingKeys: String, CodingKey {
-        case development, masks
+        case development, masks, shadowBalance, highlightBalance
         case filmID, amount, exposure, warmth, tint, contrast, saturation, highlights, shadows, grain, halation, vignette, grainSize, fade, blackPoint, crossProcess, shadowHue, shadowTone, highlightHue, highlightTone, bloom, bloomRadius, lightLeak, leakX, leakY, leakSize, leakHue
     }
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
+        shadowBalance = try values.decodeIfPresent(Double.self, forKey: .shadowBalance) ?? 0
+        highlightBalance = try values.decodeIfPresent(Double.self, forKey: .highlightBalance) ?? 0
         development = try values.decodeIfPresent(Development.self, forKey: .development) ?? Development()
         masks = try values.decodeIfPresent([LocalMask].self, forKey: .masks) ?? []
         filmID = try values.decodeIfPresent(String.self, forKey: .filmID) ?? "portra400"
@@ -119,4 +123,13 @@ struct SavedRecipe: Identifiable, Codable {
 struct PhotoRecord: Codable {
     var path: String
     var recipe: Recipe
+    var versions: [KeptVersion] = []
+    enum CodingKeys: String, CodingKey { case path, recipe, versions }
+    init(path: String, recipe: Recipe, versions: [KeptVersion] = []) { self.path = path; self.recipe = recipe; self.versions = versions }
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        path = try values.decode(String.self, forKey: .path)
+        recipe = try values.decode(Recipe.self, forKey: .recipe)
+        versions = try values.decodeIfPresent([KeptVersion].self, forKey: .versions) ?? []
+    }
 }
