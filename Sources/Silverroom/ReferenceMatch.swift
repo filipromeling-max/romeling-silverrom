@@ -17,18 +17,25 @@ struct ReferenceMatcher {
         context.draw(cg, in: CGRect(x: 0, y: 0, width: width, height: height))
         var red = 0.0, green = 0.0, blue = 0.0, saturation = 0.0
         var luminance: [Double] = []
+        var shadowRG = 0.0, shadowBG = 0.0, highlightRG = 0.0, highlightBG = 0.0, shadowWeight = 0.0, highlightWeight = 0.0
         for i in stride(from: 0, to: pixels.count, by: 4) where pixels[i + 3] > 127 {
             let alpha = Double(pixels[i + 3])
             let r = Double(pixels[i]) / alpha, g = Double(pixels[i + 1]) / alpha, b = Double(pixels[i + 2]) / alpha
             red += r; green += g; blue += b
             let high = max(r, g, b), low = min(r, g, b)
             saturation += high > 0.001 ? (high - low) / high : 0
-            luminance.append(r * 0.2126 + g * 0.7152 + b * 0.0722)
+            let l = r * 0.2126 + g * 0.7152 + b * 0.0722
+            luminance.append(l)
+            let sw = pow(max(0, 1 - l), 2), hw = pow(max(0, l), 2)
+            shadowRG += (r - g) * sw; shadowBG += (b - g) * sw; shadowWeight += sw
+            highlightRG += (r - g) * hw; highlightBG += (b - g) * hw; highlightWeight += hw
         }
         guard !luminance.isEmpty else { throw Failure.message("The reference has no visible pixels to analyze.") }
         luminance.sort()
         let n = Double(luminance.count)
-        return [red/n, green/n, blue/n, saturation/n] + [0.1, 0.25, 0.5, 0.75, 0.9].map { luminance[Int(Double(luminance.count - 1) * $0)] }
+        let tones = [0.1, 0.25, 0.5, 0.75, 0.9].map { luminance[Int(Double(luminance.count - 1) * $0)] }
+        let relationships = [shadowRG / max(0.001, shadowWeight), shadowBG / max(0.001, shadowWeight), highlightRG / max(0.001, highlightWeight), highlightBG / max(0.001, highlightWeight)]
+        return [red/n, green/n, blue/n, saturation/n] + tones + relationships
     }
     static func distance(_ a: [Double], _ b: [Double]) -> Double {
         zip(a, b).enumerated().reduce(0) { $0 + pow($1.element.0 - $1.element.1, 2) * ($1.offset < 3 ? 2 : 1) }
@@ -128,7 +135,7 @@ struct ReferenceMatchView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack { Text("Match a reference").font(.title2); Spacer(); Button("Choose reference…", action: model.choose).disabled(model.busy) }
-            Text("Borrow a photograph’s color and tonal balance. Your film and texture settings stay intact.").foregroundStyle(.secondary)
+            Text("Borrow a photograph’s color, shadow/highlight relationships and tonal balance. Your film and texture settings stay intact.").foregroundStyle(.secondary)
             HStack(spacing: 16) {
                 preview(model.reference, label: model.name.isEmpty ? "REFERENCE" : model.name)
                 preview(showBefore ? model.before : model.after, label: showBefore ? "BEFORE MATCH" : "SUGGESTED LOOK")

@@ -32,7 +32,7 @@ struct Engine {
         base = base.applyingFilter("CITemperatureAndTint", parameters: ["inputNeutral": CIVector(x: 6500 + r.warmth * 2000, y: r.tint * 80), "inputTargetNeutral": CIVector(x: 6500, y: 0)])
         base = base.applyingFilter("CIHighlightShadowAdjust", parameters: ["inputHighlightAmount": 1 - r.highlights * 0.8, "inputShadowAmount": r.shadows])
         base = base.applyingFilter("CIColorControls", parameters: [kCIInputContrastKey: r.contrast, kCIInputSaturationKey: r.saturation])
-        var film = base.applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: f.saturation, kCIInputContrastKey: f.contrast])
+        var film = exposureResponse(base, recipe: r).applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: f.saturation, kCIInputContrastKey: f.contrast])
         film = film.applyingFilter("CIColorMatrix", parameters: [
             "inputRVector": CIVector(x: 1 + f.warmth * 0.18, y: 0, z: 0, w: 0),
             "inputGVector": CIVector(x: 0, y: 1 - f.tint * 0.2, z: 0, w: 0),
@@ -41,7 +41,9 @@ struct Engine {
         film = film.applyingFilter("CIToneCurve", parameters: [
             "inputPoint0": CIVector(x: 0, y: f.fade), "inputPoint1": CIVector(x: 0.25, y: 0.23 + f.fade),
             "inputPoint2": CIVector(x: 0.5, y: 0.51), "inputPoint3": CIVector(x: 0.75, y: 0.78), "inputPoint4": CIVector(x: 1, y: 0.98)])
-        if f.halation * r.halation > 0 {
+        if r.development.advancedHalation > 0 {
+            film = advancedHalo(film, base: base, recipe: r, scale: scale)
+        } else if f.halation * r.halation > 0 {
             let mask = base.applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: 0])
                 .applyingFilter("CIColorClamp", parameters: ["inputMinComponents": CIVector(x: 0.7, y: 0.7, z: 0.7, w: 0), "inputMaxComponents": CIVector(x: 1, y: 1, z: 1, w: 1)])
                 .applyingFilter("CIColorMatrix", parameters: ["inputRVector": CIVector(x: 3.33, y: 0, z: 0, w: 0), "inputGVector": CIVector(x: 0, y: 3.33, z: 0, w: 0), "inputBVector": CIVector(x: 0, y: 0, z: 3.33, w: 0), "inputBiasVector": CIVector(x: -2.331, y: -2.331, z: -2.331, w: 0)])
@@ -49,18 +51,13 @@ struct Engine {
                 .applyingFilter("CIColorMatrix", parameters: ["inputRVector": CIVector(x: f.halation * r.halation * 0.32, y: 0, z: 0, w: 0), "inputGVector": CIVector(x: 0, y: f.halation * r.halation * 0.065, z: 0, w: 0), "inputBVector": CIVector(x: 0, y: 0, z: 0, w: 0)])
             film = glow.applyingFilter("CIScreenBlendMode", parameters: [kCIInputBackgroundImageKey: film]).cropped(to: extent)
         }
-        if f.grain * r.grain > 0 {
-            // Core Image's repeatable noise field is sampled in original pixel coordinates.
-            let noise = CIFilter.randomGenerator().outputImage!.transformed(by: .init(scaleX: max(0.25, scale * r.grainSize), y: max(0.25, scale * r.grainSize))).cropped(to: extent)
-                .applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: 0])
-                .applyingFilter("CIColorMatrix", parameters: ["inputAVector": CIVector(x: 0, y: 0, z: 0, w: min(1, f.grain * max(0, r.grain) * 0.25))])
-            film = noise.applyingFilter("CISoftLightBlendMode", parameters: [kCIInputBackgroundImageKey: film])
-        }
+        film = filmGrain(film, recipe: r, scale: scale)
         let mask = CIImage(color: CIColor(red: r.amount, green: r.amount, blue: r.amount)).cropped(to: extent)
         var result = film.applyingFilter("CIBlendWithMask", parameters: [kCIInputBackgroundImageKey: base, kCIInputMaskImageKey: mask])
+        result = scan(result, recipe: r, scale: scale)
         result = creative(result, recipe: r)
         if r.vignette > 0 { result = result.applyingFilter("CIVignette", parameters: [kCIInputIntensityKey: r.vignette, kCIInputRadiusKey: max(extent.width, extent.height) * 0.6]) }
-        return result.cropped(to: extent)
+        return localDevelop(result, masks: r.masks).cropped(to: extent)
     }
     // Creative finishing follows the emulsion blend, so film strength does not
     // silently disable independently authored light or color treatments.

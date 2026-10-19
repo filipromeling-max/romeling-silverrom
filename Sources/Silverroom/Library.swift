@@ -51,6 +51,28 @@ enum HistoryAction {
         change { $0.filmID = films[next].id }
     }
     func toggleOriginal() { comparisonMode = comparisonMode == .original ? .developed : .original }
+    @Published var activeMaskID: UUID?
+    @Published var editingMask = false
+    @Published var showMask = false
+    @Published var erasingMask = false
+    @Published var maskPreview: NSImage?
+    func addMask(_ kind: MaskKind) {
+        guard recipe.masks.count < 16 else { return }
+        var mask = LocalMask(); mask.kind = kind; if kind == .brush { mask.radius = 0.08 }; mask.name = kind.rawValue + " " + String(recipe.masks.count + 1)
+        change { $0.masks.append(mask) }; activeMaskID = mask.id; showMask = true
+        if kind == .radial || kind == .gradient || kind == .brush { editingMask = true; placingLight = false; compare = false; zoom = false }
+    }
+    func editMask(_ id: UUID, _ edit: (inout LocalMask) -> Void) {
+        change { recipe in guard let index = recipe.masks.firstIndex(where: { $0.id == id }) else { return }; edit(&recipe.masks[index]) }
+    }
+    func deleteMask(_ id: UUID) {
+        change { $0.masks.removeAll { $0.id == id } }
+        activeMaskID = recipe.masks.first?.id; editingMask = false
+    }
+    func beginMaskEditing() {
+        editingMask.toggle()
+        if editingMask { placingLight = false; compare = false; zoom = false; showMask = true }
+    }
     @Published var placingLight = false
     @Published var undoStack: [HistoryAction] = []
     @Published var redoStack: [HistoryAction] = []
@@ -112,7 +134,7 @@ enum HistoryAction {
         generation += 1
         let token = generation
         renderTask?.cancel()
-        placingLight = false; adjustmentGesture(false)
+        placingLight = false; editingMask = false; activeMaskID = nil; maskPreview = nil; showMask = false; adjustmentGesture(false)
         selectedID = id; source = nil; previewSource = nil; preview = nil; original = nil
         size = .zero; busy = true; zoom = false; status = "Opening \(item.url.lastPathComponent)…"
         queue.async { [weak self] in
@@ -179,15 +201,22 @@ enum HistoryAction {
         guard let input = zoom ? source : previewSource else { return }
         generation += 1
         let token = generation, recipe = recipe, width = size.width
+        let activeMask = showMask ? recipe.masks.first { $0.id == activeMaskID } : nil
         renderTask?.cancel()
         status = "Developing…"
         let work = DispatchWorkItem { [weak self] in
             do {
                 let cg = try Engine.cgImage(Engine.develop(input, recipe: recipe, originalWidth: width))
                 let originalCG = try Engine.cgImage(input)
+                let maskCG: CGImage?
+                if let activeMask {
+                    var unmasked = recipe; unmasked.masks = []
+                    let base = Engine.develop(input, recipe: unmasked, originalWidth: width)
+                    maskCG = try Engine.cgImage(Engine.localMask(activeMask, image: base))
+                } else { maskCG = nil }
                 DispatchQueue.main.async {
                     guard let self, self.generation == token else { return }
-                    self.preview = NSImage(cgImage: cg, size: .zero); self.original = NSImage(cgImage: originalCG, size: .zero); self.status = "All adjustments saved"
+                    self.maskPreview = maskCG.map { NSImage(cgImage: $0, size: .zero) }; self.preview = NSImage(cgImage: cg, size: .zero); self.original = NSImage(cgImage: originalCG, size: .zero); self.status = "All adjustments saved"
                 }
             } catch {
                 let message = error.localizedDescription
@@ -225,7 +254,7 @@ enum HistoryAction {
             else {
                 generation += 1; renderTask?.cancel()
                 selectedID = nil; preview = nil; original = nil; source = nil; previewSource = nil
-                size = .zero; busy = false; compare = false; zoom = false; placingLight = false
+                size = .zero; busy = false; compare = false; zoom = false; placingLight = false; editingMask = false; maskPreview = nil; activeMaskID = nil; showMask = false
                 status = "Ready for your next frame"
             }
         }

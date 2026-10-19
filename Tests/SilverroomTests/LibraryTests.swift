@@ -107,4 +107,24 @@ final class LibraryTests: XCTestCase {
         library.toggleOriginal(); XCTAssertEqual(library.comparisonMode, .developed)
     }
 
+    @MainActor func testLocalMaskPaintingUndoAndSessionPersistence() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let library = Library(restore: false, storageDirectory: dir)
+        let photo = Photograph(url: URL(fileURLWithPath: "/test.jpg"), recipe: Recipe())
+        library.photos = [photo]; library.selectedID = photo.id
+        library.addMask(.brush)
+        let id = try XCTUnwrap(library.activeMaskID)
+        library.adjustmentGesture(true)
+        library.editMask(id) { $0.strokes.append(MaskStroke(points: [MaskPoint(x: 0.2, y: 0.3), MaskPoint(x: 0.7, y: 0.4)])) }
+        library.adjustmentGesture(false)
+        XCTAssertEqual(library.recipe.masks[0].strokes.count, 1)
+        library.undo(); XCTAssertTrue(library.recipe.masks[0].strokes.isEmpty)
+        library.redo(); XCTAssertEqual(library.recipe.masks[0].strokes.count, 1)
+        let records = try JSONDecoder().decode([PhotoRecord].self, from: Data(contentsOf: dir.appendingPathComponent("session.json")))
+        XCTAssertEqual(records[0].recipe.masks, library.recipe.masks)
+        library.deleteMask(id); XCTAssertTrue(library.recipe.masks.isEmpty)
+        library.undo(); XCTAssertEqual(library.recipe.masks[0].strokes.count, 1)
+    }
+
 }

@@ -9,6 +9,8 @@ final class ReferenceMatchTests: XCTestCase {
     func testSuggestionImprovesMatchAndPreservesTexture() throws {
         let source = fixture()
         var base = Recipe(); base.grain = 3; base.grainSize = 2
+        base.development.scanner = "editorial"; base.development.adaptiveGrain = 0.7
+        var mask = LocalMask(); mask.kind = .gradient; mask.exposure = 0.2; base.masks = [mask]
         var target = base; target.exposure = 0.6; target.warmth = 0.3; target.saturation = 0.65
         let reference = Engine.develop(source, recipe: target)
         let suggestion = try ReferenceMatcher.suggest(source: source, reference: reference, base: base)
@@ -19,6 +21,7 @@ final class ReferenceMatchTests: XCTestCase {
         XCTAssertEqual(suggestion.filmID, base.filmID)
         XCTAssertEqual(suggestion.grain, base.grain); XCTAssertEqual(suggestion.grainSize, base.grainSize)
         XCTAssertEqual(suggestion.lightLeak, base.lightLeak)
+        XCTAssertEqual(suggestion.development, base.development); XCTAssertEqual(suggestion.masks, base.masks)
         for (key, bounds, _) in ReferenceMatcher.parameters { XCTAssertTrue(bounds.contains(suggestion[keyPath: key])) }
         XCTAssertEqual(ReferenceMatcher.blend(base: base, suggestion: suggestion, strength: 0), base)
         XCTAssertEqual(ReferenceMatcher.blend(base: base, suggestion: suggestion, strength: 1), suggestion)

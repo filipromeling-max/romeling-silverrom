@@ -79,7 +79,12 @@ struct ImageComparison: View {
                     } else if library.comparisonMode == .original {
                         badge("ORIGINAL").padding(8)
                     }
+                    if library.showMask && library.comparisonMode == .developed, let mask = library.maskPreview {
+                        Rectangle().fill(.red.opacity(0.35)).frame(width: size.width, height: size.height)
+                            .mask { Image(nsImage: mask).resizable().luminanceToAlpha() }.allowsHitTesting(false)
+                    }
                     if library.placingLight && library.canEdit { LightPlacement(size: size) }
+                    if library.editingMask && library.canEdit { MaskPlacement(size: size) }
                 }.frame(width: size.width, height: size.height).clipped()
             }
         }.accessibilityElement(children: .ignore).accessibilityLabel(library.comparisonMode.rawValue + " photograph")

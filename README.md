@@ -33,7 +33,7 @@ Requires macOS 14 or newer and Xcode command-line tools to build. The build scri
 
 ## Honest boundaries
 
-Film profiles are researched creative approximations, not calibrated reproductions. RAW compatibility is provided by Apple's CIRAWFilter and varies by camera and installed macOS. Unsupported RAW files produce an error instead of silently using an embedded JPEG. Preview is downsampled to 1800 pixels; 100% and export render full resolution. Grain is approximate and may look different at fit size. This version supports individual and batch export. It does not include crop, local masks, lens profiles, or an archival catalog.
+Film profiles are researched creative approximations, not calibrated reproductions. RAW compatibility is provided by Apple's CIRAWFilter and varies by camera and installed macOS. Unsupported RAW files produce an error instead of silently using an embedded JPEG. Preview is downsampled to 1800 pixels; 100% and export render full resolution. Grain is approximate and may look different at fit size. This version supports individual and batch export. It does not include crop, lens profiles, or an archival catalog.
 
 ## Validation
 
@@ -80,3 +80,19 @@ Click **Match reference** beside the image name, then **Choose reference…** to
 Preview the reference and proposed result side by side, adjust **Match strength**, and toggle **Show before match**. **Apply match** commits one undoable adjustment; Cancel leaves the image unchanged. Fine-tune the resulting inspector settings, save a recipe or use the current look for batch export. No reference-file dependency is needed after applying.
 
 This is a global statistical starting point, not subject-aware or exact color transfer. Different scene content affects the match, and the selected film can constrain it (for example, a monochrome film cannot reproduce a colorful reference).
+
+## Film development and scanner stages (1.6)
+
+Expand **Film response & development** under Emulsion. **Exposure-aware response** introduces exposure-dependent saturation, color and highlight compression; slide interpretations have an earlier highlight shoulder. **Push / pull** spans −2 to +3 stops and couples contrast, shadow density, grain and color. It simulates development character; use Exposure separately to change brightness.
+
+Under **Grain, halation & vignette**, choose **35mm**, **120 / Medium format**, or **110 / Small format**, adjust **Image-aware grain** for tonal variation, and add **Grain color** for channel variation. Monochrome stocks retain monochrome grain. **Advanced halation** offers edge intensity, highlight threshold, spread and hue; a nonzero Edge halation amount replaces the legacy stock glow and works on every film. The main Halation slider scales intensity.
+
+**04 / Scanner & print** is a separate stage with Neutral scan, Warm minilab, Cool editorial and Soft print interpretations plus strength, contrast and sharpening. These are authored artistic looks, not measurements of a named film/scanner or chemical process. New controls default to neutral for older sessions.
+
+## Local development
+
+Expand **05 / Local development**, add up to 16 named masks, and select a mask to edit it. Radial and gradient masks can be positioned on the Fit preview or with horizontal/vertical sliders. Brush masks paint and erase strokes; Size controls brush radius, and Feather softens the selection. Luminance selects pixels above a threshold; invert it to select shadows. Color range selects a hue band with adjustable width.
+
+Each mask has enable/invert controls and local exposure, warmth, saturation, contrast and softness. **Show mask** overlays the selection in red for preview only; **Done placing** returns to normal interaction. Hide the overlay to judge the final result. Delete and painting operations support undo. Masks use normalized image coordinates and follow recipes into full-resolution export and batch processing. Brush masks are rasterized at up to 1024 pixels wide before scaling, so very small brush details can soften on large exports. Masks transfer geometrically in batch recipes; they do not detect subjects.
+
+Reference matching now scores shadow/highlight color relationships as well as global color, saturation and tonal percentiles, while preserving the new film, scanner and mask settings.

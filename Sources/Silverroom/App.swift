@@ -84,8 +84,13 @@ struct DarkroomView: View {
         }
         .background(Color.room)
         .onChange(of: library.selectedID) { _, id in previewFocused = id != nil }
-        .onChange(of: library.zoomLevel) { old, level in if level != 0 { library.placingLight = false }; if old == 0 || level == 0 { library.render() } }
-        .onChange(of: library.compare) { _, comparing in if comparing { library.placingLight = false } }
+        .onChange(of: library.zoomLevel) { old, level in if level != 0 { library.placingLight = false; library.editingMask = false }; if old == 0 || level == 0 { library.render() } }
+        .onChange(of: library.compare) { _, comparing in if comparing { library.placingLight = false; library.editingMask = false } }
+        .onChange(of: library.recipe.masks.map(\.id)) { _, ids in
+            if let id = library.activeMaskID, !ids.contains(id) { library.activeMaskID = nil; library.editingMask = false }
+        }
+        .onChange(of: library.activeMaskID) { _, _ in library.render() }
+        .onChange(of: library.showMask) { _, _ in library.render() }
         .tint(Color.accent)
         .alert("Couldn’t complete that", isPresented: Binding(get: { library.error != nil }, set: { if !$0 { library.error = nil } })) {
             Button("OK") { library.error = nil }
@@ -175,7 +180,7 @@ struct DarkroomView: View {
             }
         }.padding(.horizontal, 16).padding(.bottom, 16)
             .focusable().focused($previewFocused)
-            .onTapGesture(count: 2) { if library.canEdit && !library.placingLight && !library.comparisonMode.isSplit { library.zoom.toggle() } }
+            .onTapGesture(count: 2) { if library.canEdit && !library.placingLight && !library.editingMask && !library.comparisonMode.isSplit { library.zoom.toggle() } }
             .simultaneousGesture(TapGesture().onEnded { previewFocused = true })
             .onKeyPress(.upArrow) { guard library.canEdit else { return .ignored }; library.stepFilm(-1); return .handled }
             .onKeyPress(.downArrow) { guard library.canEdit else { return .ignored }; library.stepFilm(1); return .handled }

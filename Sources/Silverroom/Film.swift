@@ -68,15 +68,20 @@ struct Recipe: Codable, Equatable {
     var leakY = 0.35
     var leakSize = 0.5
     var leakHue = 0.06
+    var development = Development()
+    var masks: [LocalMask] = []
     var film: Film { Film.all.first { $0.id == filmID } ?? Film.all[0] }
     init() {}
 
     // Older sessions omit the new controls. Neutral defaults preserve their edits.
     enum CodingKeys: String, CodingKey {
+        case development, masks
         case filmID, amount, exposure, warmth, tint, contrast, saturation, highlights, shadows, grain, halation, vignette, grainSize, fade, blackPoint, crossProcess, shadowHue, shadowTone, highlightHue, highlightTone, bloom, bloomRadius, lightLeak, leakX, leakY, leakSize, leakHue
     }
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
+        development = try values.decodeIfPresent(Development.self, forKey: .development) ?? Development()
+        masks = try values.decodeIfPresent([LocalMask].self, forKey: .masks) ?? []
         filmID = try values.decodeIfPresent(String.self, forKey: .filmID) ?? "portra400"
         amount = try values.decodeIfPresent(Double.self, forKey: .amount) ?? 1.0
         exposure = try values.decodeIfPresent(Double.self, forKey: .exposure) ?? 0.0

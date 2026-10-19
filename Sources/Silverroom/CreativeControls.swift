@@ -161,6 +161,7 @@ struct DevelopmentInspector: View {
                 }.buttonStyle(.borderless).disabled(!library.canEdit)
                 Text(library.recipe.film.note).font(.system(size: 11)).foregroundStyle(Color.subtle).lineSpacing(3).fixedSize(horizontal: false, vertical: true)
                 RecipeSlider(title: "Film strength", key: \.amount, suffix: "%")
+                DevelopmentControls()
                 Divider()
                 Caption(text: "02 / CHARACTER")
                 Menu {
@@ -196,7 +197,7 @@ struct DevelopmentInspector: View {
                         RecipeSlider(title: "Bloom spread", key: \.bloomRadius)
                         RecipeSlider(title: "Light leak", key: \.lightLeak)
                         Button {
-                            library.placingLight.toggle()
+                            library.editingMask = false; library.placingLight.toggle()
                             if library.placingLight {
                                 library.compare = false; library.zoom = false
                                 if library.recipe.lightLeak == 0 { library.change { $0.lightLeak = 0.4 } }
@@ -217,11 +218,16 @@ struct DevelopmentInspector: View {
                     VStack(spacing: 18) {
                         RecipeSlider(title: "Grain amount", key: \.grain, range: 0...8, suffix: "%")
                         RecipeSlider(title: "Grain size", key: \.grainSize, range: 0.5...8, multiplier: 1, format: "%.1f", suffix: "×")
+                        GrainControls()
                         RecipeSlider(title: "Halation", key: \.halation, range: 0...2)
                         RecipeSlider(title: "Vignette", key: \.vignette, range: 0...2, multiplier: 50)
                         Text("Grain amount: 100% is the stock’s default, up to 800% for heavy texture. Grain size reaches 8×. Judge texture at 100% zoom. Film strength also affects grain.").font(.system(size: 10)).foregroundStyle(Color.subtle)
                     }.padding(.top, 16)
                 }.font(.system(size: 12))
+                HalationControls()
+                Divider()
+                ScannerControls()
+                LocalMaskControls()
                 Divider()
                 HStack {
                     Menu("Recipes") {
