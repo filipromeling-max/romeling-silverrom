@@ -97,9 +97,9 @@ Each mask has enable/invert controls and local exposure, warmth, saturation, con
 
 Reference matching now scores shadow/highlight color relationships as well as global color, saturation and tonal percentiles, while preserving the new film, scanner and mask settings.
 
-## Working print controls (1.8)
+## Working print controls (1.9)
 
-The photograph fills the workspace beneath a compact native Mac toolbar. Click the current film name to browse films, manage favorites, or expand live neighboring-film previews. **↑/↓** while the preview is focused and **⌥↑/⌥↓** cycle films. Choose **Light · Color · Texture · Glow · Local** from the adjustment selector in the resizable native inspector.
+The photograph fills the workspace beneath a standard-height native Mac toolbar. A rounded material inspector with an inset edge and subtle shadow holds the controls. Film rolls stay pinned at the top while adjustments scroll below. Click a roll or its previous/next arrows to switch; the grid button opens all films and favorites. Click the current film name to browse films, manage favorites, or expand live neighboring-film previews. **↑/↓** while the preview is focused and **⌥↑/⌥↓** cycle films. Choose **Light · Color · Texture · Glow · Local** from the adjustment selector in the resizable native inspector.
 
 **⌥⌘I** toggles the inspector, and **⌥⌘S** toggles the session thumbnails (hidden by default). Both are also available in View and the toolbar. Hide both for a centered, unobstructed photograph. Versions, reset and batch export are in the toolbar’s **More** menu. **Explore** opens variations on demand rather than occupying the canvas.
 

@@ -17,8 +17,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>CFBundleName</key><string>Romeling Silverroom</string>
 <key>CFBundleDisplayName</key><string>Romeling Silverroom</string>
 <key>CFBundleIdentifier</key><string>studio.silverroom.mac</string>
-<key>CFBundleVersion</key><string>10</string>
-<key>CFBundleShortVersionString</key><string>1.8.0</string>
+<key>CFBundleVersion</key><string>11</string>
+<key>CFBundleShortVersionString</key><string>1.9.0</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundleExecutable</key><string>Silverroom</string>

@@ -108,12 +108,70 @@ struct PrintToolBar: View {
         }.frame(maxWidth: .infinity).padding(.vertical, 5).background(Color.panel)
     }
 }
+struct FilmShelf: View {
+    @EnvironmentObject var library: Library
+    @State private var browsing = false
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                Text("Film rolls").font(.headline)
+                Spacer()
+                Button { library.stepFilm(-1) } label: { Image(systemName: "chevron.left").frame(width: 24, height: 24) }
+                    .accessibilityLabel("Previous film").help("Previous film · ⌥↑")
+                Button { library.stepFilm(1) } label: { Image(systemName: "chevron.right").frame(width: 24, height: 24) }
+                    .accessibilityLabel("Next film").help("Next film · ⌥↓")
+                Button { browsing = true } label: { Image(systemName: "square.grid.2x2").frame(width: 24, height: 24) }
+                    .accessibilityLabel("Browse all films").help("Browse all films and favorites")
+                    .popover(isPresented: $browsing) { FilmBrowser().environmentObject(library) }
+            }.buttonStyle(.borderless).disabled(!library.canEdit)
+            HStack(alignment: .top, spacing: 8) {
+                ForEach(library.ribbonFilms) { film in
+                    let selected = film.id == library.recipe.filmID
+                    Button { library.adjustmentGesture(false); library.change { $0.filmID = film.id } } label: {
+                        VStack(spacing: 8) {
+                            VStack(spacing: 0) {
+                                RoundedRectangle(cornerRadius: 3).fill(Color(hex: 0x383A39)).frame(width: 34, height: 7)
+                                VStack(spacing: 5) {
+                                    Text(film.maker).font(.system(size: 7, weight: .bold)).lineLimit(1).minimumScaleFactor(0.7)
+                                    Text(film.iso).font(.system(size: 16, weight: .semibold, design: .rounded))
+                                    Text(film.monochrome ? "B&W" : "COLOR").font(.system(size: 6, weight: .bold)).tracking(1)
+                                }.foregroundStyle(Color(hex: 0x171818)).frame(width: 49, height: 58)
+                                    .background(Color(hex: film.color), in: RoundedRectangle(cornerRadius: 6))
+                                RoundedRectangle(cornerRadius: 3).fill(Color(hex: 0x383A39)).frame(width: 41, height: 5)
+                            }.accessibilityHidden(true)
+                            Text(film.name).font(.system(size: 10, weight: selected ? .semibold : .regular))
+                                .lineLimit(2).multilineTextAlignment(.center).frame(height: 26)
+                        }.frame(maxWidth: .infinity).padding(.vertical, 10)
+                            .background(selected ? Color.accent.opacity(0.12) : .white.opacity(0.025), in: RoundedRectangle(cornerRadius: 14))
+                            .overlay { RoundedRectangle(cornerRadius: 14).strokeBorder(selected ? Color.accent.opacity(0.65) : .white.opacity(0.05), lineWidth: 1) }
+                            .contentShape(RoundedRectangle(cornerRadius: 14))
+                    }.buttonStyle(.plain).disabled(!library.canEdit)
+                        .accessibilityLabel("Select " + film.maker + " " + film.name)
+                        .accessibilityAddTraits(selected ? .isSelected : []).help(film.note)
+                }
+            }
+            Text(library.recipe.film.note).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(2).frame(height: 30, alignment: .topLeading)
+        }.padding(18)
+    }
+}
+
 struct WorkingInspector: View {
     @EnvironmentObject var library: Library
     var save: () -> Void
     var match: () -> Void
     @State private var exploring = false
     var body: some View {
+        VStack(spacing: 0) {
+            FilmShelf()
+            Divider().padding(.horizontal, 18)
+            adjustmentControls
+        }
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(.white.opacity(0.08), lineWidth: 1).allowsHitTesting(false) }
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .shadow(color: .black.opacity(0.22), radius: 12, y: 4)
+    }
+    private var adjustmentControls: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 Picker("Adjustment", selection: Binding(get: { library.activeTool }, set: { library.chooseTool($0) })) {
@@ -167,7 +225,7 @@ struct WorkingInspector: View {
                     }.padding(.top, 14)
                 }.font(.system(size: 12))
             }.padding(22)
-        }.background(Color.panel)
+        }
     }
     private var light: some View {
         VStack(alignment: .leading, spacing: 18) {

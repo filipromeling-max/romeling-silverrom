@@ -11,7 +11,7 @@ import AppKit
                 .onOpenURL { library.add([$0]) }
         }
         .defaultSize(width: 1380, height: 900)
-        .windowToolbarStyle(.unifiedCompact)
+        .windowToolbarStyle(.unified)
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("Import Photographs…", action: library.open).keyboardShortcut("o")
@@ -84,9 +84,12 @@ struct DarkroomView: View {
         .navigationTitle(library.selected?.name ?? "Romeling Silverroom")
         .inspector(isPresented: $library.inspectorVisible) {
             WorkingInspector(save: { recipeName = library.recipe.film.name + " · Custom"; savingRecipe = true }, match: { referencePhoto = library.selected })
-                .inspectorColumnWidth(min: 280, ideal: 300, max: 380)
+                .padding(12)
+                .background(Color.room)
+                .inspectorColumnWidth(min: 320, ideal: 350, max: 420)
         }
         .toolbar { darkroomToolbar }
+        .controlSize(.regular)
     }
     var body: some View {
         workspace
@@ -134,7 +137,7 @@ struct DarkroomView: View {
     }
     @ToolbarContentBuilder private var darkroomToolbar: some ToolbarContent {
         ToolbarItem(placement: .navigation) {
-            Button(action: library.open) { Label("Import", systemImage: "plus") }
+            Button(action: library.open) { Label("Import", systemImage: "plus").labelStyle(.titleAndIcon) }
                 .help("Import photographs · ⌘O")
         }
         ToolbarItem(placement: .principal) {
@@ -143,7 +146,7 @@ struct DarkroomView: View {
                     Image(systemName: "camera.filters")
                     Text(library.recipe.film.name).lineLimit(1)
                     Image(systemName: "chevron.down").font(.system(size: 9))
-                }.frame(maxWidth: 190)
+                }.padding(.horizontal, 6).frame(minHeight: 32, maxHeight: 32).frame(maxWidth: 190)
             }
             .help("Choose film · ⌥↑ / ⌥↓ to switch quickly")
             .disabled(!library.canEdit)
@@ -169,7 +172,7 @@ struct DarkroomView: View {
                 Button("JPEG · 95% quality") { library.export(format: "jpg") }
                 Button("TIFF · 16-bit") { library.export(format: "tiff") }
                 Button("PNG · Lossless") { library.export(format: "png") }
-            } label: { Label("Export", systemImage: "square.and.arrow.up") }
+            } label: { Label("Export", systemImage: "square.and.arrow.up").labelStyle(.titleAndIcon) }
                 .disabled(!library.canExport || library.exporting).help("Export photograph")
         }
         ToolbarItem(placement: .automatic) {
